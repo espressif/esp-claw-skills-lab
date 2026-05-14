@@ -3,13 +3,14 @@
   "name": "camera_preview",
   "description": "Live camera preview on the on-board LCD. Streams RGB565 frames from the camera sensor to the display.",
   "author": "ESP-Claw contributor",
-  "metadata": {
-    "category": ["media"],
-    "tags": ["preview", "video", "demo"],
-    "peripherals": ["camera", "display"],
-    "cap_groups": ["cap_lua"],
-    "manage_mode": "web"
-  }
+  "metadata":
+    {
+      "category": ["media"],
+      "tags": ["preview", "video", "demo"],
+      "peripherals": ["camera", "display"],
+      "cap_groups": ["cap_lua"],
+      "manage_mode": "web"
+    }
 }
 ---
 

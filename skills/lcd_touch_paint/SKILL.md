@@ -3,13 +3,14 @@
   "name": "lcd_touch_paint",
   "description": "A finger-drawing paint application on the on-board LCD touch panel. Use as a touch test, drawing demo, or LCD touch sanity check.",
   "author": "ESP-Claw contributor",
-  "metadata": {
-    "category": ["utility"],
-    "tags": ["paint", "drawing", "touch", "demo"],
-    "peripherals": ["display"],
-    "cap_groups": ["cap_lua"],
-    "manage_mode": "web"
-  }
+  "metadata":
+    {
+      "category": ["utility"],
+      "tags": ["paint", "drawing", "touch", "demo"],
+      "peripherals": ["display"],
+      "cap_groups": ["cap_lua"],
+      "manage_mode": "web"
+    }
 }
 ---
 

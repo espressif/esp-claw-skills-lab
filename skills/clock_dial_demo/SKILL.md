@@ -3,13 +3,14 @@
   "name": "clock_dial_demo",
   "description": "An animated analog clock dial rendered on the on-board LCD, with hour/minute/second hands and a dark themed face.",
   "author": "ESP-Claw contributor",
-  "metadata": {
-    "category": ["utility"],
-    "tags": ["clock", "watchface", "dial", "demo"],
-    "peripherals": ["display"],
-    "cap_groups": ["cap_lua"],
-    "manage_mode": "web"
-  }
+  "metadata":
+    {
+      "category": ["utility"],
+      "tags": ["clock", "watchface", "dial", "demo"],
+      "peripherals": ["display"],
+      "cap_groups": ["cap_lua"],
+      "manage_mode": "web"
+    }
 }
 ---
 

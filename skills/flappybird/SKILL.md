@@ -3,13 +3,14 @@
   "name": "flappybird",
   "description": "A Flappy Bird mini-game running on the on-board display. Controls fall back from LCD touch to a button if no touch is available.",
   "author": "ESP-Claw contributor",
-  "metadata": {
-    "category": ["game"],
-    "tags": ["flappybird", "arcade", "demo"],
-    "peripherals": ["display"],
-    "cap_groups": ["cap_lua"],
-    "manage_mode": "web"
-  }
+  "metadata":
+    {
+      "category": ["game"],
+      "tags": ["flappybird", "arcade", "demo"],
+      "peripherals": ["display"],
+      "cap_groups": ["cap_lua"],
+      "manage_mode": "web"
+    }
 }
 ---
 
