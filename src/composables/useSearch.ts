@@ -1,103 +1,15 @@
 import { ref, watch } from 'vue'
-import MiniSearch from 'minisearch'
 import { useSkillsStore } from '@/stores/skills'
 import type { SkillData } from '@/types/skill'
-
-interface ParsedSearchQuery {
-  text: string
-  categories: string[]
-  tags: string[]
-  peripherals: string[]
-}
-
-const FILTER_PATTERN = /\b(category|c|tag|t|peripheral|peripherals):(?:"([^"]+)"|([^\s]+))/gi
-
-function normalizeFilterValue(value: string): string {
-  return value.trim().toLocaleLowerCase()
-}
-
-function parseSearchQuery(query: string): ParsedSearchQuery {
-  const categories: string[] = []
-  const tags: string[] = []
-  const peripherals: string[] = []
-
-  const text = query
-    .replace(
-      FILTER_PATTERN,
-      (_, filterType: string, quoted: string | undefined, bare: string | undefined) => {
-        const rawValue = (quoted ?? bare ?? '').trim()
-        if (!rawValue) return ' '
-
-        const normalizedFilterType = filterType.toLocaleLowerCase()
-
-        if (['category', 'c'].includes(normalizedFilterType)) {
-          categories.push(rawValue)
-        } else if (['tag', 't'].includes(normalizedFilterType)) {
-          tags.push(rawValue)
-        } else {
-          peripherals.push(rawValue)
-        }
-        return ' '
-      },
-    )
-    .replace(/\s+/g, ' ')
-    .trim()
-
-  return { text, categories, tags, peripherals }
-}
-
-function getCategoryValues(skill: SkillData): Set<string> {
-  return new Set((skill.metadata.category ?? []).map(normalizeFilterValue))
-}
-
-function getTagValues(skill: SkillData): Set<string> {
-  return new Set(
-    [
-      ...(skill.metadata.tags ?? []),
-      ...(skill.metadata.category ?? []),
-      ...(skill.metadata.peripherals ?? []),
-    ].map(normalizeFilterValue),
-  )
-}
-
-function getPeripheralValues(skill: SkillData): Set<string> {
-  return new Set((skill.metadata.peripherals ?? []).map(normalizeFilterValue))
-}
-
-function matchesFilters(skill: SkillData, parsedQuery: ParsedSearchQuery): boolean {
-  const categoryValues = getCategoryValues(skill)
-  const tagValues = getTagValues(skill)
-  const peripheralValues = getPeripheralValues(skill)
-
-  return (
-    parsedQuery.categories.every((category) =>
-      categoryValues.has(normalizeFilterValue(category)),
-    ) &&
-    parsedQuery.tags.every((tag) => tagValues.has(normalizeFilterValue(tag))) &&
-    parsedQuery.peripherals.every((peripheral) =>
-      peripheralValues.has(normalizeFilterValue(peripheral)),
-    )
-  )
-}
+import { SkillSearchEngine } from './searchEngine'
 
 export function useSearch() {
   const store = useSkillsStore()
   const results = ref<SkillData[]>([])
-  const miniSearch = ref<MiniSearch<SkillData> | null>(null)
+  let engine: SkillSearchEngine | null = null
 
   function buildIndex() {
-    const ms = new MiniSearch<SkillData>({
-      fields: ['name', 'description', 'title'],
-      storeFields: ['id'],
-      idField: 'id',
-      searchOptions: {
-        boost: { name: 2, title: 1.5 },
-        fuzzy: 0.2,
-        prefix: true,
-      },
-    })
-    ms.addAll(store.skills)
-    miniSearch.value = ms
+    engine = new SkillSearchEngine(store.skills)
   }
 
   watch(
@@ -110,25 +22,13 @@ export function useSearch() {
 
   function search(query: string) {
     store.searchQuery = query
-    if (!query.trim()) {
-      results.value = []
-      return
-    }
-    if (!miniSearch.value) {
+    if (!query.trim() || !engine) {
       results.value = []
       return
     }
 
     store.activeCategory = 'all'
-    const parsedQuery = parseSearchQuery(query)
-    const searchBase = parsedQuery.text
-      ? miniSearch.value
-          .search(parsedQuery.text)
-          .map((hit) => store.skills.find((s) => s.id === hit.id))
-          .filter((s): s is SkillData => s !== undefined)
-      : store.skills
-
-    results.value = searchBase.filter((skill) => matchesFilters(skill, parsedQuery))
+    results.value = engine.search(query)
   }
 
   return { results, search }

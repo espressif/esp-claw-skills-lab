@@ -11,7 +11,12 @@ export default {
     titleHighlight: 'ESP-Claw',
     titleSuffix: 'with These Skills!',
     searchPlaceholder: 'Press / to search',
+    searchPlaceholderFocused: 'Type to search all supported fields',
     search: 'Search',
+    searchSyntax: 'Search syntax',
+    syntaxTagDesc: 'Use t: to search skills by tag',
+    syntaxPeripheralDesc: 'Use p: to search skills by peripheral',
+    syntaxCategoryDesc: 'Use c: to search skills by category',
   },
   skillCard: {
     download: 'Download',

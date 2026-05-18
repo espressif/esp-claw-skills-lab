@@ -11,7 +11,12 @@ export default {
     titleHighlight: 'ESP-Claw',
     titleSuffix: '装备这些技能！',
     searchPlaceholder: '按 / 搜索',
+    searchPlaceholderFocused: '直接键入以搜索所有支持的字段',
     search: '搜索',
+    searchSyntax: '搜索语法',
+    syntaxTagDesc: '使用 t: 搜索指定 tag 的 skills',
+    syntaxPeripheralDesc: '使用 p: 搜索指定外设的 skills',
+    syntaxCategoryDesc: '使用 c: 搜索指定类别的 skills',
   },
   skillCard: {
     download: '下载',

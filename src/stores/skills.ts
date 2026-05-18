@@ -34,6 +34,26 @@ export const useSkillsStore = defineStore('skills', () => {
     return Array.from(cats).sort()
   })
 
+  const allTags = computed(() => {
+    const set = new Set<string>()
+    for (const skill of skills.value) {
+      if (skill.metadata.tags) {
+        for (const t of skill.metadata.tags) set.add(t)
+      }
+    }
+    return Array.from(set).sort()
+  })
+
+  const allPeripherals = computed(() => {
+    const set = new Set<string>()
+    for (const skill of skills.value) {
+      if (skill.metadata.peripherals) {
+        for (const p of skill.metadata.peripherals) set.add(p)
+      }
+    }
+    return Array.from(set).sort()
+  })
+
   const filteredSkills = computed(() => {
     if (searchQuery.value) return skills.value
     if (activeCategory.value === 'featured') return featuredSkills.value
@@ -57,6 +77,8 @@ export const useSkillsStore = defineStore('skills', () => {
     searchQuery,
     featuredSkills,
     categories,
+    allTags,
+    allPeripherals,
     filteredSkills,
     load,
     setCategory,
