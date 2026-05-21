@@ -2,12 +2,14 @@
 {
   "name": "codex_usage_dashboard",
   "description": "Show a Codex usage quota dashboard on the board display from a configured JSON endpoint, including 5-hour and weekly reset status.",
-  "metadata": {
-    "cap_groups": [
-      "cap_lua"
-    ],
-    "manage_mode": "readonly"
-  }
+  "metadata":
+    {
+      "category": ["utility", "ai"],
+      "tags": ["codex", "usage", "quota", "dashboard"],
+      "peripherals": ["display"],
+      "cap_groups": ["cap_lua", "cap_http_request", "cap_time"],
+      "manage_mode": "web"
+    }
 }
 ---
 
@@ -16,6 +18,8 @@
 Use this skill when the user asks to show, start, open, launch, or display the Codex usage dashboard, quota dashboard, usage meter, 5-hour quota, or weekly quota on the device screen.
 
 This skill runs one Lua dashboard app that uses the board LCD with LVGL and periodically fetches usage data from its configured JSON endpoint.
+
+<img width="1448" height="1086" alt="image" src="https://github.com/user-attachments/assets/5a0379ca-8c78-49e5-ba0a-5fa5f7d18393" />
 
 ## Prerequisites
 
@@ -74,6 +78,7 @@ Run asynchronously because the dashboard stays active until stopped:
    - `https://raw.githubusercontent.com/2002-luzi/codex-plugins/refs/heads/main/plugins/codex-usage-lan-plugin/README.md`
 
    Use that information to guide the user through plugin installation and endpoint setup.
+
 5. Confirm the script path is `/fatfs/skills/codex_usage_dashboard/scripts/codex_usage_dashboard.lua`.
 6. Start it with `lua_run_script_async` using name `codex_usage_dashboard`, exclusive group `display`, `replace: true`, and `timeout_ms: 0`.
 7. Report that the dashboard is running, or report the Lua error directly.
