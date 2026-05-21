@@ -60,25 +60,24 @@ Run asynchronously because the dashboard stays active until stopped:
 ## Recommended Flow
 
 1. Use board hardware info first if display availability is uncertain.
-2. Before proceeding, explicitly confirm both of the following with the user:
-   - The Codex usage plugin has been installed.
-   - The user has provided the JSON endpoint URL or IP address.
+2. Before proceeding, you must verify both prerequisites with the user:
+   - Confirm that the Codex usage plugin is installed.
+   - Ask for and obtain the JSON endpoint URL or IP address.
 
-3. Ask the user for the JSON endpoint URL or IP address, even if they have already confirmed that the plugin is installed.
+3. Do not continue unless both prerequisites are satisfied. Confirmation of plugin installation alone is insufficient; the JSON endpoint URL or IP address must also be provided.
 
-4. Do not proceed until both requirements are satisfied:
-   - The user confirms that the Codex usage plugin is installed.
-   - The user provides the JSON endpoint URL or IP address.
+4. If the user needs guidance to install the plugin or configure the endpoint, MUST first tell the user that they can view the installation guide here:
+   - `https://github.com/2002-luzi/codex-plugins`
 
-5. If the user needs guidance to install the plugin or set up the endpoint, retrieve the relevant information from:
+   Then retrieve instructions from:
    - `https://raw.githubusercontent.com/2002-luzi/codex-plugins/refs/heads/main/README.md`
    - `https://raw.githubusercontent.com/2002-luzi/codex-plugins/refs/heads/main/plugins/codex-usage-lan-plugin/README.md`
 
-   Then guide the user through installing the plugin and setting up the JSON endpoint.
-6. Confirm the script path is `/fatfs/skills/codex_usage_dashboard/scripts/codex_usage_dashboard.lua`.
-7. Start it with `lua_run_script_async` using name `codex_usage_dashboard`, exclusive group `display`, `replace: true`, and `timeout_ms: 0`.
-8. Report that the dashboard is running, or report the Lua error directly.
-9. If the user asks to stop, close, quit, cancel, or clear the display/dashboard, call `lua_stop_async_job` with name `codex_usage_dashboard`.
+   Use that information to guide the user through plugin installation and endpoint setup.
+5. Confirm the script path is `/fatfs/skills/codex_usage_dashboard/scripts/codex_usage_dashboard.lua`.
+6. Start it with `lua_run_script_async` using name `codex_usage_dashboard`, exclusive group `display`, `replace: true`, and `timeout_ms: 0`.
+7. Report that the dashboard is running, or report the Lua error directly.
+8. If the user asks to stop, close, quit, cancel, or clear the display/dashboard, call `lua_stop_async_job` with name `codex_usage_dashboard`.
 
 ## Behavior
 
