@@ -21,7 +21,7 @@ This skill runs one Lua dashboard app that uses the board LCD with LVGL and peri
 
 - The board must have a supported LCD display available as `display_lcd`.
 - The Lua runtime must include `board_manager`, `lvgl`, `capability`, `json`, and `system` modules.
-- The configured endpoint in the script must be reachable: `http://192.168.0.116:8000/data.json`.
+- Users need to install a companion Codex plugin on their PC, which provides the JSON endpoint.
 - The `http_request` capability must allow that endpoint.
 
 ## Script Args Schema
@@ -29,7 +29,13 @@ This skill runs one Lua dashboard app that uses the board LCD with LVGL and peri
 ```json
 {
   "type": "object",
-  "properties": {},
+  "properties": {
+    "url": {
+      "type": "string",
+      "description": "Codex usage JSON endpoint, for example http://192.168.1.10:8000/data.json",
+      "pattern": "^https?://"
+    }
+  },
   "additionalProperties": false
 }
 ```
@@ -41,7 +47,9 @@ Run asynchronously because the dashboard stays active until stopped:
 ```json
 {
   "path": "/fatfs/skills/code_usage_dashboard/scripts/code_usage_dashboard.lua",
-  "args": {},
+  "args": {
+    "url": "http://<pc-ip>:8000/data.json"
+  },
   "name": "code_usage_dashboard",
   "exclusive": "display",
   "replace": true,
@@ -52,10 +60,12 @@ Run asynchronously because the dashboard stays active until stopped:
 ## Recommended Flow
 
 1. Use board hardware info first if display availability is uncertain.
-2. Confirm the script path is `/fatfs/skills/code_usage_dashboard/scripts/code_usage_dashboard.lua`.
-3. Start it with `lua_run_script_async` using name `code_usage_dashboard`, exclusive group `display`, `replace: true`, and `timeout_ms: 0`.
-4. Report that the dashboard is running, or report the Lua error directly.
-5. If the user asks to stop, close, quit, cancel, or clear the display/dashboard, call `lua_stop_async_job` with name `code_usage_dashboard`.
+2. Confirm with the user if the Codex usage plugin is installed and the JSON endpoint is available on which url or ip address.
+   - If the user requires a guidance to install the plugin or set up the endpoint, find the information from `https://raw.githubusercontent.com/2002-luzi/codex-plugins/refs/heads/main/README.md` and `https://raw.githubusercontent.com/2002-luzi/codex-plugins/refs/heads/main/plugins/codex-usage-lan-plugin/README.md`. Guide the user how to install the plugin and set up the endpoint.
+3. Confirm the script path is `/fatfs/skills/code_usage_dashboard/scripts/code_usage_dashboard.lua`.
+4. Start it with `lua_run_script_async` using name `code_usage_dashboard`, exclusive group `display`, `replace: true`, and `timeout_ms: 0`.
+5. Report that the dashboard is running, or report the Lua error directly.
+6. If the user asks to stop, close, quit, cancel, or clear the display/dashboard, call `lua_stop_async_job` with name `code_usage_dashboard`.
 
 ## Behavior
 

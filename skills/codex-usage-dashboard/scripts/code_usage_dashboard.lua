@@ -4,7 +4,7 @@ local capability = require("capability")
 local json = require("json")
 local system = require("system")
 
-local DEFAULT_URL = "http://192.168.0.116:8000/data.json"
+local DEFAULT_URL = "http://192.168.1.10:8000/data.json"
 
 local function trim(s)
     return tostring(s or ""):match("^%s*(.-)%s*$")
