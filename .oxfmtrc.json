@@ -2,15 +2,5 @@
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
   "semi": false,
   "singleQuote": true,
-  "overrides": [
-    {
-      "files": ["skills/**/*.md"],
-      "options": {
-        "semi": false,
-        "trailingComma": "none",
-        "singleQuote": false
-      }
-    }
-  ],
-  "ignorePatterns": [".vscode/**/*.json"]
+  "ignorePatterns": [".vscode/**/*.json", "skills/**/*.md"]
 }

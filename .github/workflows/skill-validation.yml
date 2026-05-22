@@ -26,7 +26,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Check formatting with oxfmt
-        run: pnpm exec oxfmt --check .
+        run: pnpm exec oxfmt --check
 
       - name: Validate skills
         run: pnpm validate-skills
