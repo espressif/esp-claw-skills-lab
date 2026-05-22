@@ -6,8 +6,8 @@
   "metadata":
     {
       "category": ["sensor"],
-      "tags": ["motor", "unihiker", "dfrobot", "expansion board"],
-      "peripherals": [],
+      "tags": ["unihiker", "dfrobot", "expansion board"],
+      "peripherals": ["motor"],
       "cap_groups": ["cap_lua"],
       "manage_mode": "web"
     }
