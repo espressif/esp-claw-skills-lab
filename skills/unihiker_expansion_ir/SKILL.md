@@ -7,7 +7,6 @@
     {
       "category": ["sensor"],
       "tags": ["ir", "infrared", "unihiker", "dfrobot", "expansion board", "i2c"],
-      "peripherals": ["ir"],
       "cap_groups": ["cap_lua"],
       "manage_mode": "web"
     }

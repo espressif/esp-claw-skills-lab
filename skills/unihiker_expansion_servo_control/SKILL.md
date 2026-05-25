@@ -7,7 +7,6 @@
     {
       "category": ["sensor"],
       "tags": ["servo", "unihiker", "dfrobot", "expansion board", "i2c"],
-      "peripherals": ["servo"],
       "cap_groups": ["cap_lua"],
       "manage_mode": "web"
     }

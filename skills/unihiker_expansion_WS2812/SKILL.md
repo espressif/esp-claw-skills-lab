@@ -7,7 +7,6 @@
     {
       "category": ["sensor"],
       "tags": ["ws2812", "rgb", "led", "unihiker", "dfrobot", "expansion board", "i2c"],
-      "peripherals": ["led"],
       "cap_groups": ["cap_lua"],
       "manage_mode": "web"
     }
