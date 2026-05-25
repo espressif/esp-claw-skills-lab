@@ -19,6 +19,10 @@ export const ALLOWED_PERIPHERALS = [
   'display',
   'button',
   'gpio',
+  'battery',
+  'ir',
+  'servo',
+  'ws2812',
 ] as const
 
 export type Peripheral = (typeof ALLOWED_PERIPHERALS)[number]

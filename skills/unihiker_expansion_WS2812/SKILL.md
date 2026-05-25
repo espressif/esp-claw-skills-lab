@@ -6,7 +6,8 @@
   "metadata":
     {
       "category": ["sensor"],
-      "tags": ["ws2812", "rgb", "led", "unihiker", "dfrobot", "expansion board", "i2c"],
+      "tags": ["rgb", "unihiker", "dfrobot", "expansion board", "i2c"],
+      "peripherals": ["ws2812", "led"],
       "cap_groups": ["cap_lua"],
       "manage_mode": "web"
     }

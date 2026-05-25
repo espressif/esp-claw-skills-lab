@@ -6,7 +6,8 @@
   "metadata":
     {
       "category": ["sensor"],
-      "tags": ["battery", "unihiker", "dfrobot", "expansion board", "i2c"],
+      "tags": ["unihiker", "dfrobot", "expansion board", "i2c"],
+      "peripherals": ["battery"],
       "cap_groups": ["cap_lua"],
       "manage_mode": "web"
     }
