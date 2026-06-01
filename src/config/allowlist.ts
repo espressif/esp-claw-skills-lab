@@ -23,6 +23,7 @@ export const ALLOWED_PERIPHERALS = [
   'ir',
   'servo',
   'ws2812',
+  'matrix_lidar',
 ] as const
 
 export type Peripheral = (typeof ALLOWED_PERIPHERALS)[number]
@@ -37,4 +38,7 @@ export const FEATURED_SKILLS: string[] = [
   'flappy_bird',
   'github_repo_star',
   'lcd_touch_paint',
+  'codex_usage_dashboard',
+  'unihiker_expansion_servo_control',
+  'dfrobot_matrix_lidar_8x8_i2c',
 ]
