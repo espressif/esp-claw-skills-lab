@@ -2,9 +2,13 @@
 {
   "name": "movement_detection",
   "description": "Detect moving objects with the board camera and send a captured photo to the current WeChat chat or online dialog.",
+  "author": "ESP-Claw contributor",
   "metadata": {
     "cap_groups": ["cap_lua", "cap_im_wechat", "cap_im_local"],
-    "manage_mode": "readonly"
+    "manage_mode": "web",
+    "category": ["media"],
+    "peripherals": ["camera"],
+    "tags": ["motion", "intrusion", "monitoring"]
   }
 }
 ---
