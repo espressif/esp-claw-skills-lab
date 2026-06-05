@@ -44,4 +44,5 @@ export const FEATURED_SKILLS: string[] = [
   'dfrobot_matrix_lidar_8x8_i2c',
   'dfrobot_stcc4_i2c',
   'dino',
+  'balance_ball',
 ]
