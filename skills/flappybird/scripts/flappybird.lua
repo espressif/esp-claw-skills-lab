@@ -1,5 +1,3 @@
--- Flappy Bird — single entry script (cap_lua script limit up to 32 KB).
-
 local bm = require("board_manager")
 local display = require("display")
 local delay = require("delay")
@@ -40,8 +38,7 @@ local PIPE_MARGIN = 42
 local PIPE_STEP = 10
 local MAX_PIPE_SHIFT = 26
 local SOUND_VOLUME = 90
--- Breadboard USB UAC (uac_codec) buffers ~4 KB before the first USB packet.
-local UAC_FLUSH_PCM_BYTES = 4000
+local UAC_FLUSH_PCM_BYTES = 4000 -- min PCM bytes for UAC host write
 local SFX_FLAP_HZ, SFX_FLAP_MS = 920, 90
 local SFX_SCORE_HZ, SFX_SCORE_MS = 1320, 100
 local SFX_CRASH_HZ, SFX_CRASH_MS = 180, 350

@@ -78,4 +78,4 @@ the user asks.
 
 ## Files
 
-- `scripts/flappybird.lua` — single entry script (~19 KB; requires cap_lua script limit ≥ 32 KB)
+- `scripts/flappybird.lua`
