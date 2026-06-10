@@ -25,6 +25,7 @@ export const ALLOWED_PERIPHERALS = [
   'ws2812',
   'matrix_lidar',
   'stcc4',
+  'button',
 ] as const
 
 export type Peripheral = (typeof ALLOWED_PERIPHERALS)[number]
@@ -45,4 +46,5 @@ export const FEATURED_SKILLS: string[] = [
   'dfrobot_stcc4_i2c',
   'dino',
   'balance_ball',
+  'unihiker_button',
 ]
