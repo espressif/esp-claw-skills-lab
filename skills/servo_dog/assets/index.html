@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Servo Dog</title>
+  <link rel="stylesheet" href="/lua/servo_dog/style.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <h1>Servo Dog</h1>
+      <span id="status" class="status">Connecting</span>
+    </header>
+
+    <section class="panel">
+      <h2>移动</h2>
+      <div class="dpad" aria-label="movement controls">
+        <button data-move="F" class="move forward">前进</button>
+        <button data-move="L" class="move left">左转</button>
+        <button data-action="idle" class="move stop">停止</button>
+        <button data-move="R" class="move right">右转</button>
+        <button data-move="B" class="move back">后退</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>动作</h2>
+      <div id="actions" class="button-grid"></div>
+    </section>
+
+    <section class="panel">
+      <h2>校准</h2>
+      <div class="calibration-row">
+        <button id="start-calibration">开始校准</button>
+        <button id="exit-calibration">退出校准</button>
+      </div>
+      <div class="servo-grid">
+        <button class="servo" data-servo="fl">前左 <strong>0</strong></button>
+        <button class="servo" data-servo="fr">前右 <strong>0</strong></button>
+        <button class="servo" data-servo="bl">后左 <strong>0</strong></button>
+        <button class="servo" data-servo="br">后右 <strong>0</strong></button>
+      </div>
+      <div class="adjust-row">
+        <button id="minus">-</button>
+        <span id="selected-servo">未选择</span>
+        <button id="plus">+</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>动作序列</h2>
+      <div class="sequence-editor">
+        <select id="sequence-action"></select>
+        <input id="sequence-delay" type="number" value="0.5" min="0" max="10" step="0.1" aria-label="delay seconds">
+        <button id="add-sequence">添加</button>
+      </div>
+      <div id="sequence-list" class="sequence-list"></div>
+      <div class="calibration-row">
+        <button id="save-sequence">保存</button>
+        <button id="play-sequence">播放</button>
+      </div>
+    </section>
+  </main>
+  <script src="/lua/servo_dog/app.js"></script>
+</body>
+</html>

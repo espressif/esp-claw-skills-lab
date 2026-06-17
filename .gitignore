@@ -43,3 +43,5 @@ src/generated/*
 !src/generated/.gitkeep
 
 skills/**/_metadata.json
+
+Agent.md
