@@ -1,50 +1,51 @@
 ---
 {
   "name": "token_usage",
-  "description": "Install or show the token usage dashboard on the device display: Cursor activity, Deepseek balance, standing reminders, weather, hourly telemetry memory, and on-the-hour greeting letters. Requires a display and a PC host running the token usage HTTP server on the same network. Standing reminders are managed locally on the device.",
-  "metadata": {
-    "cap_groups": [
-      "cap_lua"
-    ],
-    "manage_mode": "web",
-    "category": [
-      "utility"
-    ],
-    "peripherals": [
-      "display"
-    ],
-    "tags": [
-      "cursor",
-      "deepseek",
-      "dashboard",
-      "token",
-      "install",
-      "standing"
-    ]
-  }
+  "description": "Install, show, open, or close the token usage dashboard on the board display. Shows Cursor/Codex activity, Deepseek balance, standing reminders, and weather. Requires a display and a PC host running the token usage HTTP server on the same network.",
+  "metadata":
+    {
+      "cap_groups": ["cap_lua"],
+      "manage_mode": "web",
+      "category": ["utility", "ai"],
+      "peripherals": ["display"],
+      "tags": ["cursor", "deepseek", "dashboard", "token", "install", "standing"]
+    }
 }
 ---
 
 # Token Usage
 
-Installs or runs the token usage dashboard on ESP-Claw. The installer switches the agent persona, registers boot auto-start for the dashboard, saves hourly telemetry into long-term memory, and sends on-the-hour greeting letters to known IM chats.
+Use this skill when the user asks to install, set up, show, open, refresh, or close the token usage dashboard, token monitor, or standing reminder screen.
+
+The installer switches the agent persona, registers boot auto-start for the dashboard, saves hourly telemetry into long-term memory, and sends on-the-hour greeting letters to known IM chats. Standing reminders are managed locally on the device.
+
+Match the user's language when you reply; do not switch language on your own.
 
 ## When to use
 
 - The user asks to install, set up, or adopt the token usage dashboard, token monitor, or standing reminder screen, in any language.
-- The user asks to show, open, or close the dashboard without reinstalling.
+- The user asks to show, open, refresh, or close the dashboard without reinstalling.
 
-Match the user's language when you reply; do not switch language on your own.
+## Prerequisites
+
+- The board must declare a `display_lcd` device in board hardware info.
+- Live Cursor, Deepseek, standing, and weather data require a PC IPv4 address on the same network running the token usage HTTP server.
+- On-the-hour greeting letters require SNTP time sync after installation.
 
 ## Install
 
 Use this flow when the user wants installation, boot auto-start, hourly memory snapshots, or scheduled greeting letters.
 
+Run exactly one bundled Lua script with `lua_run_script`.
+
+If script execution returns an error, report that error directly to the user.
+Do not retry with changed arguments in the same turn unless the user explicitly asks.
+
 1. Ask for the PC IPv4 address that runs the token usage HTTP server. Do not run the installer without it.
-2. Run the installer with `lua_run_script` and the inputs shown below.
+2. Run `{CUR_SKILL_DIR}/scripts/install_token.lua` with the inputs shown below.
 3. Wait for the log line `[install_token] install complete` before telling the user that setup is ready.
 4. If the script prints `[install_token] ERROR: ...`, report that line to the user and stop.
-5. After installation completes successfully, tell the user to restart the device (e.g., press the reset button or use `device_reset`) for the skill to take effect.
+5. After installation completes successfully, tell the user to restart the device (for example press the reset button or use `device_reset`) for the skill to take effect.
 
 Re-running the installer updates the existing router rules and schedules (host, port, or letter language). On memory-constrained boards, the installer skips relaunching the dashboard when it is already running with the same host/port, and stops display jobs before a relaunch when host/port changes or `restart_dashboard=true`.
 
@@ -81,7 +82,7 @@ User asks to install the token dashboard and gives a PC IP.
 
 Use this flow when the user only wants to open or refresh the dashboard UI.
 
-Run exactly one bundled Lua script asynchronously with the Lua script execution capability.
+Run exactly one bundled Lua script asynchronously with `lua_run_script_async`.
 
 If script execution returns an error, report that error directly to the user.
 Do not retry with changed arguments or run another script in the same turn unless the user explicitly asks.
@@ -160,19 +161,37 @@ Do not retry with changed arguments or run another script in the same turn unles
 Show the dashboard with PC polling enabled:
 
 ```json
-{"path":"{CUR_SKILL_DIR}/scripts/token_usage.lua","args":{"host":"192.168.1.20","port":8080},"timeout_ms":0}
+{
+  "path": "{CUR_SKILL_DIR}/scripts/token_usage.lua",
+  "args": {
+    "host": "192.168.1.20",
+    "port": 8080
+  },
+  "timeout_ms": 0
+}
 ```
 
 Show the dashboard UI without PC polling when the host is unknown:
 
 ```json
-{"path":"{CUR_SKILL_DIR}/scripts/token_usage.lua","args":{},"timeout_ms":0}
+{
+  "path": "{CUR_SKILL_DIR}/scripts/token_usage.lua",
+  "args": {},
+  "timeout_ms": 0
+}
 ```
 
 Use a custom heartbeat interval when push is unavailable:
 
 ```json
-{"path":"{CUR_SKILL_DIR}/scripts/token_usage.lua","args":{"host":"192.168.1.20","heartbeat_ms":15000},"timeout_ms":0}
+{
+  "path": "{CUR_SKILL_DIR}/scripts/token_usage.lua",
+  "args": {
+    "host": "192.168.1.20",
+    "heartbeat_ms": 15000
+  },
+  "timeout_ms": 0
+}
 ```
 
 ### Dashboard Recommended Flow
@@ -198,11 +217,11 @@ Run the bundled Lua script asynchronously so the LVGL dashboard stays alive:
 
 ## Configuration
 
-Install and schedule tunables live in **`{CUR_SKILL_DIR}/scripts/token_usage_config.lua`** — snapshot interval, letter cron expression, default letter language, letter persona name, and default port. After editing the config, run `install_token.lua` again to update the scheduler entries and router rules.
+Install and schedule tunables live in `{CUR_SKILL_DIR}/scripts/token_usage_config.lua` — snapshot interval, letter cron expression, default letter language, letter persona name, and default port. After editing the config, run `{CUR_SKILL_DIR}/scripts/install_token.lua` again to update the scheduler entries and router rules.
 
 ## Persona
 
-Installation copies **`{CUR_SKILL_DIR}/soul_token.md`** to `/fatfs/memory/soul.md`. ESP-Claw speaks as a warm desk-side colleague with gentle, good-natured teasing — not a status dashboard. Scheduled hourly letters follow the same voice: human, caring, and concise.
+Installation copies `{CUR_SKILL_DIR}/soul_token.md` to `memory/soul.md` under the device DATA root. ESP-Claw speaks as a warm desk-side colleague with gentle, good-natured teasing — not a status dashboard. Scheduled hourly letters follow the same voice: human, caring, and concise.
 
 ## Behavior
 
@@ -221,6 +240,6 @@ The standing icon is drawn directly on an LVGL canvas in the bottom-left area of
 
 Touching the screen during an active standing reminder window confirms that hour's pill.
 
-After installation, `token_usage_snapshot.lua` runs every hour to sample local environmental sensors (temperature, humidity, pressure, estimated CO2) plus PC data (DeepSeek token balance, account balance, outdoor weather, Cursor/Codex activity) and local standing count from the dashboard state file, append `{CUR_SKILL_DIR}/telemetry_history/`, and call `memory_store` with tags `token_usage,environment,standing,weather,cursor`.
+After installation, `{CUR_SKILL_DIR}/scripts/token_usage_snapshot.lua` runs every hour to sample local environmental sensors (temperature, humidity, pressure, estimated CO2) plus PC data (DeepSeek token balance, account balance, outdoor weather, Cursor/Codex activity) and local standing count from the dashboard state file, append `{CUR_SKILL_DIR}/telemetry_history/`, and call `memory_store` with tags `token_usage,environment,standing,weather,cursor`.
 
-`token_usage_letter.lua` runs synchronously (no async task spawned) every minute via scheduler, but only composes and sends a letter at the top of each clock hour. It reads telemetry history and recent long-term memory (`memory_recall` on the `token_usage` label), then broadcasts the greeting to known IM chats. Letters weave desk air, outdoor weather, standing progress, token trends, and agent workload into everyday language with one caring suggestion — not a technical report. Synchronous execution avoids a 32KB Lua task allocation that would fail when internal DRAM is fragmented.
+`{CUR_SKILL_DIR}/scripts/token_usage_letter.lua` runs synchronously (no async task spawned) every minute via scheduler, but only composes and sends a letter at the top of each clock hour. It reads telemetry history and recent long-term memory (`memory_recall` on the `token_usage` label), then broadcasts the greeting to known IM chats. Letters weave desk air, outdoor weather, standing progress, token trends, and agent workload into everyday language with one caring suggestion — not a technical report. Synchronous execution avoids a 32KB Lua task allocation that would fail when internal DRAM is fragmented.
