@@ -47,4 +47,5 @@ export const FEATURED_SKILLS: string[] = [
   'dino',
   'balance_ball',
   'unihiker_button',
+  'token_usage',
 ]
