@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { ArrowRight, Play } from '@lucide/vue'
 import type { SkillData } from '@/types/skill'
+import { buildSkillSimulatorUrl, isSimulatorSkill } from '@/utils/simulator'
 
 const props = defineProps<{ skill: SkillData }>()
 const router = useRouter()
@@ -12,9 +14,14 @@ const authorName = computed(() => {
   const rawAuthor = props.skill.author?.trim() || 'Unknown'
   return rawAuthor.split('<')[0]?.trim() || rawAuthor
 })
+const canSimulate = computed(() => isSimulatorSkill(props.skill))
 
 function goToDetail() {
   router.push(`/${lang.value}/skill/${props.skill.id}`)
+}
+
+function openSimulator() {
+  window.open(buildSkillSimulatorUrl(props.skill), '_blank', 'noopener,noreferrer')
 }
 </script>
 
@@ -25,10 +32,16 @@ function goToDetail() {
         <h3 class="card-title">{{ skill.title || skill.name }}</h3>
         <p class="card-author">by {{ authorName }}</p>
       </div>
-      <button class="install-btn" type="button" @click.stop="goToDetail">
-        <span class="install-arrow">↓</span>
-        <span>{{ $t('skillCard.download') }}</span>
-      </button>
+      <div class="card-actions">
+        <button v-if="canSimulate" class="sim-btn" type="button" @click.stop="openSimulator">
+          <Play :size="14" />
+          <span>{{ $t('skillCard.tryOnline') }}</span>
+        </button>
+        <button class="install-btn" type="button" @click.stop="goToDetail">
+          <ArrowRight :size="14" />
+          <span>{{ $t('skillCard.download') }}</span>
+        </button>
+      </div>
     </div>
     <p class="card-desc">{{ skill.description }}</p>
   </div>
@@ -91,6 +104,13 @@ function goToDetail() {
   flex: 1;
 }
 
+.card-actions {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 0.45rem;
+  flex-shrink: 0;
+}
+
 .card-title {
   font-size: 1.05rem;
   font-weight: 700;
@@ -109,26 +129,31 @@ function goToDetail() {
   margin: 0.3rem 0 0;
 }
 
-.install-btn {
+.install-btn,
+.sim-btn {
   display: inline-flex;
   align-items: center;
   align-self: stretch;
   gap: 0.3rem;
-  padding: 0.1rem 0.7rem;
+  padding: 0.1rem 0.65rem;
   height: 2.1rem;
-  border: 0.1rem solid var(--accent);
-  background: linear-gradient(135deg, var(--accent) 50%, transparent 50%);
-  background-size: 300% 300%;
-  background-position: 100% 100%;
-  color: var(--accent);
   font: inherit;
   font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
   transition:
-    background-position 0.4s ease,
-    color 0.4s ease;
+    background 0.2s ease,
+    color 0.2s ease,
+    background-position 0.4s ease;
+}
+
+.install-btn {
+  border: 0.1rem solid var(--accent);
+  background: linear-gradient(135deg, var(--accent) 50%, transparent 50%);
+  background-size: 300% 300%;
+  background-position: 100% 100%;
+  color: var(--accent);
 }
 
 .install-btn:hover,
@@ -137,8 +162,16 @@ function goToDetail() {
   color: #fff;
 }
 
-.install-arrow {
-  line-height: 1;
+.sim-btn {
+  border: 0.1rem solid #54b68b;
+  background: rgba(84, 182, 139, 0.12);
+  color: #75d7aa;
+}
+
+.sim-btn:hover,
+.sim-btn:focus-visible {
+  background: rgba(84, 182, 139, 0.22);
+  color: #dffbed;
 }
 
 .card-desc {
@@ -157,5 +190,21 @@ function goToDetail() {
   overflow: hidden;
   text-overflow: ellipsis;
   overflow-wrap: break-word;
+}
+
+@media (max-width: 720px) {
+  .card-top {
+    flex-direction: column;
+  }
+
+  .card-actions {
+    width: 100%;
+  }
+
+  .install-btn,
+  .sim-btn {
+    justify-content: center;
+    flex: 1;
+  }
 }
 </style>

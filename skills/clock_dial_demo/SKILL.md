@@ -5,7 +5,7 @@
   "author": "ESP-Claw contributor",
   "metadata":
     {
-      "category": ["utility"],
+      "category": ["utility", "ui"],
       "tags": ["clock", "watchface", "dial", "demo"],
       "peripherals": ["display"],
       "cap_groups": ["cap_lua"],

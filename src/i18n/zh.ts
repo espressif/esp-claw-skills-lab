@@ -20,6 +20,7 @@ export default {
   },
   skillCard: {
     download: '下载',
+    tryOnline: '在线体验',
   },
   category: {
     featured: '✨ 精选',
@@ -31,6 +32,7 @@ export default {
     network: '📡 网络',
     sensor: '🌍 传感器',
     ai: '🤖 AI',
+    ui: '🖥️ 界面',
   },
   detail: {
     backToHome: '返回首页',
@@ -49,6 +51,7 @@ export default {
     referenceFiles: '{n} 个参考文件',
     totalSize: '合计 {size}',
     installToEspClaw: '安装到 ESP-Claw',
+    tryOnline: '在线体验',
     noSpecialPeripheralRequirement: '无特殊外设要求',
     noTags: '未添加 tag。',
   },

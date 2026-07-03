@@ -20,6 +20,7 @@ export default {
   },
   skillCard: {
     download: 'Download',
+    tryOnline: 'Try Online',
   },
   category: {
     featured: '✨ Featured',
@@ -31,6 +32,7 @@ export default {
     network: '📡 Network',
     sensor: '🌍 Sensor',
     ai: '🤖 AI',
+    ui: '🖥️ UI',
   },
   detail: {
     backToHome: 'Back to Home',
@@ -49,6 +51,7 @@ export default {
     referenceFiles: '{n} Reference Files',
     totalSize: '= {size}',
     installToEspClaw: 'Install to ESP-Claw',
+    tryOnline: 'Try Online',
     noSpecialPeripheralRequirement: 'No special peripheral requirements',
     noTags: 'No tags added.',
   },

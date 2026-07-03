@@ -4,7 +4,7 @@
   "description": "Run a Flappy Bird mini-game on the board LCD. Prefer LCD touch; otherwise use a GPIO button. Optional audio on audio_dac.",
   "author": "ESP-Claw contributor",
   "metadata": {
-    "category": ["game"],
+    "category": ["game", "ui"],
     "tags": ["flappybird", "arcade", "demo", "button", "touch"],
     "peripherals": ["display"],
     "cap_groups": ["cap_lua"],

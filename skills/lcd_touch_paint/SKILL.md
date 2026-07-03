@@ -5,7 +5,7 @@
   "author": "ESP-Claw contributor",
   "metadata":
     {
-      "category": ["utility"],
+      "category": ["utility", "ui"],
       "tags": ["paint", "drawing", "touch", "demo"],
       "peripherals": ["display"],
       "cap_groups": ["cap_lua"],
