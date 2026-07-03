@@ -9,6 +9,12 @@
     "peripherals": ["display"],
     "cap_groups": ["cap_lua"],
     "manage_mode": "web"
+  },
+  "simulator": {
+    "entry": "scripts/flappybird.lua",
+    "files": [
+      "scripts/flappybird.lua"
+    ]
   }
 }
 ---

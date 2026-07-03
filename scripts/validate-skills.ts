@@ -38,6 +38,11 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'string')
 }
 
+function isSafeSkillRelativePath(value: string): boolean {
+  const normalized = value.replaceAll('\\', '/')
+  return Boolean(normalized) && !normalized.startsWith('/') && !normalized.includes('..')
+}
+
 if (!fs.existsSync(skillsDir)) {
   console.log('No skills/ directory found. Nothing to validate.')
   process.exit(0)
@@ -115,6 +120,36 @@ for (const entry of entries) {
       for (const cat of categories) {
         if (!(ALLOWED_CATEGORIES as readonly string[]).includes(cat as string)) {
           addError(skillId, `Unknown category: "${cat}". Allowed: ${ALLOWED_CATEGORIES.join(', ')}`)
+        }
+      }
+    }
+
+    if (isStringArray(categories) && categories.includes('ui')) {
+      const simulator = frontmatter.simulator as Record<string, unknown> | undefined
+      if (!simulator || typeof simulator !== 'object') {
+        addError(skillId, '`simulator` must be defined for UI skills')
+      } else {
+        const entryPath = simulator.entry
+        const files = simulator.files
+        if (typeof entryPath !== 'string' || !isSafeSkillRelativePath(entryPath)) {
+          addError(skillId, '`simulator.entry` must be a safe skill-relative path')
+        }
+        if (!isStringArray(files) || files.length === 0) {
+          addError(skillId, '`simulator.files` must be a non-empty array of skill-relative paths')
+        } else {
+          const normalizedFiles = files.map((file) => file.replaceAll('\\', '/'))
+          for (const file of files) {
+            if (!isSafeSkillRelativePath(file)) {
+              addError(skillId, `Invalid simulator file path: "${file}"`)
+              continue
+            }
+            if (!fs.existsSync(path.join(skillDir, file))) {
+              addError(skillId, `Simulator file does not exist: "${file}"`)
+            }
+          }
+          if (typeof entryPath === 'string' && !normalizedFiles.includes(entryPath.replaceAll('\\', '/'))) {
+            addError(skillId, '`simulator.files` must include `simulator.entry`')
+          }
         }
       }
     }

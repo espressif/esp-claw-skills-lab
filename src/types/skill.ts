@@ -12,6 +12,10 @@ export interface SkillFrontmatter {
   author?: string
   metadata: SkillMetadata
   featured?: boolean
+  simulator?: {
+    entry: string
+    files: string[]
+  }
 }
 
 export interface SkillExtraFiles {

@@ -9,6 +9,12 @@
     "peripherals": ["display"],
     "cap_groups": ["cap_lua"],
     "manage_mode": "web"
+  },
+  "simulator": {
+    "entry": "scripts/dino.lua",
+    "files": [
+      "scripts/dino.lua"
+    ]
   }
 }
 ---
