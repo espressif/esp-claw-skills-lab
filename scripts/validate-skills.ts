@@ -147,7 +147,10 @@ for (const entry of entries) {
               addError(skillId, `Simulator file does not exist: "${file}"`)
             }
           }
-          if (typeof entryPath === 'string' && !normalizedFiles.includes(entryPath.replaceAll('\\', '/'))) {
+          if (
+            typeof entryPath === 'string' &&
+            !normalizedFiles.includes(entryPath.replaceAll('\\', '/'))
+          ) {
             addError(skillId, '`simulator.files` must include `simulator.entry`')
           }
         }
