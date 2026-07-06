@@ -5,6 +5,8 @@ local delay = require("delay")
 
 local FRAME_TIMEOUT_MS = 1000
 local FRAME_INTERVAL_MS = 30
+local PREVIEW_MODE = "fit"
+local CAMERA_FORMATS = { "RGBP", "RGBR", "JPEG", "MJPG", "YUYV", "UYVY" }
 
 local function close_camera()
     local ok, err = pcall(camera.close)
@@ -43,7 +45,23 @@ if not ok then
     return
 end
 
-local opened, open_err = pcall(camera.open, camera_paths.dev_path)
+local width = display.width
+local height = display.height
+if width <= 0 or height <= 0 then
+    print("[camera_preview_demo] ERROR: invalid display size after init")
+    cleanup_display()
+    return
+end
+
+-- Match the requested camera stream size to the actual LCD drawing size.
+local camera_open_opts = {
+    format = CAMERA_FORMATS,
+    width = width,
+    height = height,
+    nearest = true,
+}
+
+local opened, open_err = pcall(camera.open, camera_paths.dev_path, camera_open_opts)
 if not opened then
     print("[camera_preview_demo] ERROR: " .. tostring(open_err))
     cleanup_display()
@@ -60,26 +78,17 @@ end
 
 local pixel_format = tostring(info_or_err.pixel_format)
 
-if pixel_format ~= "RGBP" and pixel_format ~= "RGBR" then
-    print("[camera_preview_demo] ERROR: preview only supports RGB565/RGB565X, got " .. pixel_format)
-    close_camera()
-    cleanup_display()
-    return
-end
-
-local width = display.width
-local height = display.height
 local x = 0
 local y = 0
 
 local function draw_frame(frame)
-    display.draw_image(x, y, frame, { mode = "fit", width = width, height = height })
+    display.draw_image(x, y, frame, { mode = PREVIEW_MODE, width = width, height = height })
     display.present()
 end
 
 print(string.format(
-    "[camera_preview_demo] preview start camera=%dx%d format=%s lcd=%dx%d panel_if=%s",
-    info_or_err.width, info_or_err.height, pixel_format, width, height, panel_if_name
+    "[camera_preview_demo] preview start camera=%dx%d format=%s lcd=%dx%d panel_if=%s mode=%s",
+    info_or_err.width, info_or_err.height, pixel_format, width, height, panel_if_name, PREVIEW_MODE
 ))
 
 display.begin_frame({ clear = true })
