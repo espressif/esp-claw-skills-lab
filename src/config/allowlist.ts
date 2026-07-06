@@ -6,6 +6,7 @@ export const ALLOWED_CATEGORIES = [
   'network',
   'sensor',
   'ai',
+  'ui',
 ] as const
 
 export type Category = (typeof ALLOWED_CATEGORIES)[number]

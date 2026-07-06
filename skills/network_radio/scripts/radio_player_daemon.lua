@@ -108,6 +108,17 @@ local function play_station(command)
   local title, url = common.resolve_station(command.station, command.url, command.title)
   local volume = common.clamp_volume(command.volume) or state.volume or common.DEFAULT_VOLUME
 
+  if state.state == "playing" and state.url == url then
+    state.title = title
+    state.url = url
+    state.error = nil
+    if volume ~= state.volume then
+      set_volume({ volume = volume })
+    end
+    print(string.format("[network_radio] keep playing title=%s volume=%d url=%s", title, state.volume, url))
+    return
+  end
+
   stop_playback()
   ensure_output(volume)
   ensure_player()

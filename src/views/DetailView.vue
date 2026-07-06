@@ -2,12 +2,13 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, Package, FileText, Puzzle, Copy, Check, ExternalLink } from '@lucide/vue'
+import { ArrowLeft, Package, FileText, Puzzle, Copy, Check, ExternalLink, Play } from '@lucide/vue'
 import MarkdownPreview from '@/components/MarkdownPreview.vue'
 import FileTree from '@/components/FileTree.vue'
 import RawPreviewModal from '@/components/RawPreviewModal.vue'
 import { useSkillsStore } from '@/stores/skills'
 import type { SkillData } from '@/types/skill'
+import { buildSkillSimulatorUrl, isSimulatorSkill } from '@/utils/simulator'
 
 const route = useRoute()
 const router = useRouter()
@@ -53,6 +54,7 @@ const buildGitSha = import.meta.env.VITE_BUILD_GIT_SHA || 'master'
 const peripherals = computed(() => skill.value?.metadata.peripherals ?? [])
 const tags = computed(() => skill.value?.metadata.tags ?? [])
 const categories = computed(() => skill.value?.metadata.category ?? [])
+const canSimulate = computed(() => (skill.value ? isSimulatorSkill(skill.value) : false))
 const githubTreeUrl = computed(() =>
   skill.value
     ? `https://github.com/espressif/esp-claw-skills-lab/tree/${buildGitSha}/skills/${skill.value.id}`
@@ -105,6 +107,11 @@ function goBack() {
 function goToCategory(category: string) {
   store.searchQuery = `category:"${category}"`
   router.push(`/${lang.value}`)
+}
+
+function openSimulator() {
+  if (!skill.value) return
+  window.open(buildSkillSimulatorUrl(skill.value), '_blank', 'noopener,noreferrer')
 }
 
 async function copyInstallText() {
@@ -272,6 +279,10 @@ watch(skillId, loadSkill)
       <section id="install" class="section">
         <h2 class="section-title">{{ t('detail.installToEspClaw') }}</h2>
         <div>
+          <button v-if="canSimulate" class="simulator-btn" type="button" @click="openSimulator">
+            <Play :size="14" />
+            <span>{{ t('detail.tryOnline') }}</span>
+          </button>
           <p class="install-note">
             {{ t('install.safetyMessage') }}
           </p>
@@ -603,6 +614,29 @@ watch(skillId, loadSkill)
   font-size: 0.92rem;
   color: var(--text-secondary);
   margin-bottom: 1rem;
+}
+
+.simulator-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.85rem;
+  padding: 0.55rem 0.9rem;
+  font-size: 0.84rem;
+  font-family: inherit;
+  color: #75d7aa;
+  background: rgba(84, 182, 139, 0.12);
+  border: 1px solid rgba(84, 182, 139, 0.45);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.simulator-btn:hover {
+  background: rgba(84, 182, 139, 0.22);
+  color: #dffbed;
 }
 
 .install-note {

@@ -4,11 +4,17 @@
   "description": "Run a Chrome offline-style Dino jumping runner on the board LCD. Use when the user asks for Dino, dinosaur game, runner game, jump game, LCD touch game, or GPIO button game.",
   "author": "ESP-Claw contributor",
   "metadata": {
-    "category": ["game"],
+    "category": ["game", "ui"],
     "tags": ["dino", "touch", "button", "gpio", "runner"],
     "peripherals": ["display"],
     "cap_groups": ["cap_lua"],
     "manage_mode": "web"
+  },
+  "simulator": {
+    "entry": "scripts/dino.lua",
+    "files": [
+      "scripts/dino.lua"
+    ]
   }
 }
 ---
