@@ -5,12 +5,18 @@
   "author": "ESP-Claw contributor",
   "metadata":
     {
-      "category": ["media"],
+      "category": ["media", "ui"],
       "tags": ["preview", "video", "demo"],
       "peripherals": ["camera", "display"],
       "cap_groups": ["cap_lua"],
       "manage_mode": "web"
-    }
+    },
+  "simulator": {
+    "entry": "scripts/camera_preview.lua",
+    "files": [
+      "scripts/camera_preview.lua"
+    ]
+  }
 }
 ---
 

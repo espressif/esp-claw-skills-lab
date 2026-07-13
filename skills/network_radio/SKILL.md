@@ -5,12 +5,21 @@
   "author": "ESP-Claw contributor",
   "metadata":
     {
-      "category": ["media", "network"],
+      "category": ["media", "network", "ui"],
       "tags": ["audio", "radio", "music", "qingting"],
       "peripherals": ["speaker"],
       "cap_groups": ["cap_lua"],
       "manage_mode": "web"
-    }
+    },
+  "simulator": {
+    "entry": "scripts/network_radio_app.lua",
+    "files": [
+      "scripts/network_radio_app.lua",
+      "scripts/radio_common.lua",
+      "scripts/radio_player_daemon.lua",
+      "scripts/control_network_radio.lua"
+    ]
+  }
 }
 ---
 
