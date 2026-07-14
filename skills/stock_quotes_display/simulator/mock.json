@@ -1,0 +1,12 @@
+{
+  "capability": {
+    "http_request": [
+      {
+        "method": "GET",
+        "url_contains": "push2.eastmoney.com/api/qt/ulist.np/get",
+        "status": 200,
+        "body_file": "simulator/mock_data/eastmoney_quotes.json"
+      }
+    ]
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "network_radio": {
+    "stations": [
+      {
+        "title": "崂山921",
+        "url": "http://lhttp.qingting.fm/live/20212426/64k.mp3"
+      },
+      {
+        "title": "长沙101.7城市之声",
+        "url": "http://lhttp.qingting.fm/live/4237/64k.mp3"
+      },
+      {
+        "title": "上海经典947",
+        "url": "http://lhttp.qingting.fm/live/267/64k.mp3"
+      },
+      {
+        "title": "湖北经典音乐广播",
+        "url": "http://lhttp.qingting.fm/live/1296/64k.mp3"
+      },
+      {
+        "title": "成都年代音乐怀旧好声音",
+        "url": "http://lhttp.qingting.fm/live/20211686/64k.mp3"
+      },
+      {
+        "title": "山东经典音乐广播",
+        "url": "http://lhttp.qingting.fm/live/20240/64k.mp3"
+      },
+      {
+        "title": "杭州90.7",
+        "url": "http://lhttp.qingting.fm/live/15318146/64k.mp3"
+      },
+      {
+        "title": "天津TIKI 100.5",
+        "url": "http://lhttp.qingting.fm/live/20003/64k.mp3"
+      }
+    ]
+  }
+}
