@@ -443,15 +443,24 @@ local function draw_hud()
     else
         display.fill_round_rect(hud_x, hud_y, hud_w, hud_h, 7, PANEL)
         display.draw_round_rect(hud_x, hud_y, hud_w, hud_h, 7, BORDER)
-        local title_w = math.floor(hud_w * 0.30)
+        local title_w = math.floor(hud_w * 0.25)
         display.draw_text_aligned(hud_x + 6, hud_y, title_w, hud_h, "SNAKE", {
             color = CYAN, font_size = title_font, align = "left", valign = "middle", bg = PANEL,
         })
         local stats_x = hud_x + title_w
         local stats_w = pause_x - stats_x - 6
-        local line = string.format("SCORE %d   BEST %d   LV %d", score, best, 1 + math.floor(score / 5))
-        display.draw_text_aligned(stats_x, hud_y, stats_w, hud_h, line, {
-            color = TEXT, font_size = small_font, align = "center", valign = "middle", bg = PANEL,
+        local score_w = math.floor(stats_w * 0.38)
+        local best_w = math.floor(stats_w * 0.36)
+        local level_w = stats_w - score_w - best_w
+        display.draw_text_aligned(stats_x, hud_y, score_w, hud_h, "SCORE " .. tostring(score), {
+            color = TEXT, font_size = small_font, align = "left", valign = "middle", bg = PANEL,
+        })
+        display.draw_text_aligned(stats_x + score_w, hud_y, best_w, hud_h, "BEST " .. tostring(best), {
+            color = TEXT, font_size = small_font, align = "left", valign = "middle", bg = PANEL,
+        })
+        display.draw_text_aligned(stats_x + score_w + best_w, hud_y, level_w, hud_h,
+            "LV " .. tostring(1 + math.floor(score / 5)), {
+            color = CYAN, font_size = small_font, align = "right", valign = "middle", bg = PANEL,
         })
         draw_pause_button()
     end
@@ -573,21 +582,6 @@ local function draw_data_cursor(cx, cy, r, color)
     display.draw_round_rect(cx - r, cy - r, r * 2, r * 2, 2, color)
 end
 
-local function draw_data_glyph(x, y, size, variant, color)
-    if variant == 0 then
-        display.draw_line(x, y - size, x, y + size, color)
-        display.draw_line(x, y - size, x + size, y - size, color)
-        display.draw_line(x, y, x - size, y + size, color)
-    elseif variant == 1 then
-        display.draw_round_rect(x - size, y - size, size * 2, size * 2, 1, color)
-        display.draw_line(x - size, y, x + size, y, color)
-    else
-        display.draw_line(x - size, y - size, x + size, y - size, color)
-        display.draw_line(x + size, y - size, x - size, y + size, color)
-        display.draw_line(x - size, y + size, x + size, y + size, color)
-    end
-end
-
 local function draw_food()
     local cx, cy = cell_center(food.x, food.y)
     local r = math.max(4, math.floor(cell * 0.28))
@@ -643,109 +637,6 @@ local function render(full, refresh_hud)
     display.end_frame()
 end
 
-local function draw_boot_animation()
-    local panel_w = math.min(math.floor(board_size * 0.68), 360)
-    local panel_h = clamp(math.floor(board_size * 0.24), 82, 116)
-    local x = board_x + math.floor((board_size - panel_w) / 2)
-    local y = board_y + math.floor((board_size - panel_h) / 2)
-    local bar_x = x + math.floor(panel_w * 0.12)
-    local bar_y = y + math.floor(panel_h * 0.64)
-    local bar_w = math.floor(panel_w * 0.76)
-    local bar_h = math.max(5, math.floor(panel_h * 0.07))
-
-    for frame = 0, 12 do
-        display.begin_frame({ clear = true, color = BG })
-        draw_background()
-        draw_hud()
-        draw_board_shell()
-        display.fill_round_rect(x, y, panel_w, panel_h, 7, PANEL)
-        display.draw_round_rect(x, y, panel_w, panel_h, 7, BORDER_HI)
-        display.draw_text_aligned(x, y + 8, panel_w, math.floor(panel_h * 0.32), "SYSTEM LINK", {
-            color = TEXT, font_size = stat_font, align = "center", valign = "middle", bg = PANEL,
-        })
-        local dots = string.rep(".", frame % 4)
-        display.draw_text_aligned(x, y + math.floor(panel_h * 0.35), panel_w, math.floor(panel_h * 0.22),
-            "LOADING DATA" .. dots, {
-                color = CYAN, font_size = small_font, align = "center", valign = "middle", bg = PANEL,
-            })
-        display.fill_rect(bar_x, bar_y, bar_w, bar_h, CYAN_DIM)
-        if frame > 0 then
-            display.fill_rect(bar_x, bar_y, math.floor(bar_w * frame / 12), bar_h, CYAN)
-        end
-        display.present()
-        display.end_frame()
-        delay.delay_ms(55)
-    end
-end
-
-local function draw_deploy_animation(start_dir)
-    reset_game(start_dir)
-    phase = "deploying"
-    local stream_count = math.max(GRID_N + 6, math.floor(board_size / math.max(10, cell * 0.58)))
-    local stream_gap = board_size / stream_count
-    local glyph_size = math.max(2, math.floor(cell * 0.11))
-    local glyph_gap = math.max(glyph_size * 3, math.floor(cell * 0.34))
-    local streams = {}
-    local max_frame = 72
-
-    for col = 1, stream_count do
-        streams[col] = {
-            x = board_x + math.floor((col - 0.5) * stream_gap),
-            delay = (col * 7 + col * col) % 12,
-            speed = math.max(6, math.floor(cell * (0.44 + ((col * 5) % 7) * 0.045))),
-            length = 10 + ((col * 11) % 14),
-            phase = (col * 13) % 5,
-        }
-    end
-
-    for frame = 0, max_frame do
-        display.begin_frame({ clear = true, color = BG })
-        draw_background()
-        draw_hud()
-        draw_board_shell()
-
-        for col = 1, stream_count do
-            local stream = streams[col]
-            local elapsed = frame - stream.delay
-            if elapsed >= 0 then
-                local head_y = board_y - glyph_gap + elapsed * stream.speed
-                for glyph = 0, stream.length - 1 do
-                    local y = head_y - glyph * glyph_gap
-                    if y >= board_y + glyph_size and y <= board_y + board_size - glyph_size then
-                        local pulse = (frame + glyph + stream.phase) % 6
-                        local color = pulse == 0 and TEXT or (pulse <= 2 and CYAN or CYAN_DIM)
-                        draw_data_glyph(stream.x, y, glyph_size,
-                            (glyph + stream.phase) % 3, color)
-                    end
-                end
-            end
-        end
-
-        display.present()
-        display.end_frame()
-        delay.delay_ms(28)
-    end
-
-    for line = 0, GRID_N do
-        display.begin_frame({ clear = true, color = BG })
-        draw_background()
-        draw_hud()
-        draw_board_shell()
-        for i = 0, line do
-            local p = i * cell
-            display.draw_line(board_x + p, board_y, board_x + p, board_y + board_size, GRID_LINE)
-            display.draw_line(board_x, board_y + p, board_x + board_size, board_y + p, GRID_LINE)
-        end
-        display.present()
-        display.end_frame()
-        delay.delay_ms(20)
-    end
-
-    phase = "playing"
-    last_step_ms = now_ms()
-    render(true, true)
-end
-
 local function direction_from_swipe(dx, dy)
     if math.abs(dx) < swipe_threshold and math.abs(dy) < swipe_threshold then return nil end
     if math.abs(dx) > math.abs(dy) then return dx > 0 and "right" or "left" end
@@ -776,7 +667,6 @@ local function handle_touch()
     return false
 end
 
-draw_boot_animation()
 reset_game(nil)
 render(true, true)
 print(string.format("[snake_game] ready screen=%dx%d board=%dx%d grid=%d swipe=%d run_ms=%d",
@@ -800,7 +690,8 @@ local run_ok, run_err = xpcall(function()
                     render(true, true)
                 end
             elseif phase == "ready" then
-                draw_deploy_animation(action)
+                reset_game(action)
+                render(true, true)
             elseif phase == "game_over" then
                 reset_game(action)
                 render(true, true)
