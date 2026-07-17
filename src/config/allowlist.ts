@@ -49,4 +49,8 @@ export const FEATURED_SKILLS: string[] = [
   'balance_ball',
   'unihiker_button',
   'token_usage',
+  'air_mouse',
+  'cloudmusic',
+  'flashback',
+  'weather_clock',
 ]
