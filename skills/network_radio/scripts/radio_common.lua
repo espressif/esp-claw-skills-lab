@@ -22,7 +22,7 @@ M.COMMAND_QUEUE_NAME = "network_radio_cmd"
 M.REPLY_QUEUE_NAME = "network_radio_reply"
 M.CONTROL_LOCK_NAME = "network_radio_control_lock"
 M.QUEUE_DEPTH = 2
-M.QUEUE_ITEM_SIZE = 512
+M.QUEUE_ITEM_SIZE = 2048
 M.QUEUE_RECV_MS = 500
 M.QUEUE_SEND_MS = 1000
 
