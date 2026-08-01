@@ -23,6 +23,38 @@ if text == "" and raw.action ~= "stop" and raw.action ~= "status" then
   error("voice_reminder: 'text' is required")
 end
 
+-- If caller didn't pass a volume, fall back to the board-button
+-- master volume (persisted by the board_button_volume skill).
+if raw.volume == nil then
+  local master_path = "/fatfs/board_button_volume_master.json"
+  if storage.exists(master_path) then
+    local text_master = storage.read_file(master_path)
+    if text_master and text_master ~= "" then
+      local ok, master = pcall(json.decode, text_master)
+      if ok and type(master) == "table" and tonumber(master.volume) then
+        raw.volume = tonumber(master.volume)
+      end
+    end
+  end
+end
+
+-- Flash the reminder text on the OLED status board (best-effort).
+-- Estimate duration from text length: ~200ms/char + 3s buffer,
+-- clamped to [5s, 30s]. Non-ASCII (Chinese) renders as blanks on the
+-- SSD1306's 5x7 ASCII font, but the flash itself still signals a
+-- reminder is happening.
+if text ~= "" then
+  local est_dur_ms = math.max(5000, math.min(30000, #text * 200 + 3000))
+  local ok_n, out_n, err_n = capability.call("lua_run_script", {
+    path = "/fatfs/skills/oled_status/scripts/oled_notify.lua",
+    args = { text = text, duration_ms = est_dur_ms },
+    timeout_ms = 2000,
+  })
+  if not ok_n then
+    print("[voice_reminder] OLED notify skipped (non-fatal): " .. tostring(err_n or out_n))
+  end
+end
+
 -- ---------- network_radio coordination ----------
 local RADIO_JOB_NAME = "network_radio_player"
 local RADIO_CMD_QUEUE = "network_radio_cmd"
