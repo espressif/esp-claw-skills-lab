@@ -6,7 +6,8 @@
     "cap_groups": [
       "cap_lua"
     ],
-    "manage_mode": "readonly"
+    "manage_mode": "readonly",
+    "category": ["utility"]
   }
 }
 ---
