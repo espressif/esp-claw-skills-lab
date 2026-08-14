@@ -1,4 +1,5 @@
 local arg_schema = require("arg_schema")
+local board_manager = require("board_manager")
 local delay = require("delay")
 local display = require("display")
 local system = require("system")
@@ -751,10 +752,13 @@ local function draw_scene(info, colors, clock, pieces, frame)
 end
 
 local function init_display()
-  local info, err = display.init()
-  if not info then
-    error("display.init failed: " .. tostring(err))
+  local panel_handle, io_handle, width, height, panel_if, pixel_format =
+      board_manager.get_display_lcd_params("display_lcd")
+  if not panel_handle then
+    error("get_display_lcd_params failed: " .. tostring(io_handle))
   end
+
+  display.init(panel_handle, io_handle, width, height, panel_if, pixel_format)
   display_started = true
   pcall(display.backlight, true)
 end
