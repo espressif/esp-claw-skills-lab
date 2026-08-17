@@ -11,6 +11,7 @@ local codec_name = type(raw_args.codec_name) == "string" and raw_args.codec_name
 
 local output = nil
 local player = nil
+local codec_initialized = false
 local last_command_id = nil
 local state = {
   state = "idle",
@@ -47,11 +48,26 @@ local function cleanup()
     end)
     output = nil
   end
+  -- Intentionally NOT calling bm.deinit_device(codec_name).
+  -- On V3.1 breadboard, releasing UAC puts the USB stack into a state
+  -- where the next init times out. Keeping the ref count > 0 lets
+  -- voice_reminder (and radio itself, next time) reuse UAC instantly.
+  -- Only a reboot fully releases USB.
 end
 
 local function ensure_output(volume)
   if output then
     return
+  end
+
+  if not codec_initialized then
+    local ok, init_err = bm.init_device(codec_name)
+    if not ok then
+      local message = "board_manager.init_device(" .. tostring(codec_name) .. ") failed: " .. tostring(init_err)
+      print("[network_radio] ERROR: " .. message)
+      error(message)
+    end
+    codec_initialized = true
   end
 
   local codec, rate, channels, bits = bm.get_audio_codec_output_params(codec_name)
