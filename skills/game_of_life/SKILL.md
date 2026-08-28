@@ -4,7 +4,7 @@
   "description": "Play an immersive full-screen Rainbow Conway's Game of Life on an ESP-Claw display. Tap to seed patterns, drag to paint or erase cells, long-press to reset, and shake an IMU-equipped board to scatter life. Uses Conway B3/S23 with no on-screen controls; LCD touch is preferred and IMU support is optional.",
   "author": "superjames",
   "metadata": {
-    "category": ["game"],
+    "category": ["game", "ui"],
     "tags": ["life", "conway", "rainbow", "arcade", "demo", "button", "touch", "shake", "accelerometer", "immersive"],
     "peripherals": ["display"],
     "cap_groups": ["cap_lua"],
@@ -16,6 +16,12 @@
     "args": {},
     "order": 20,
     "visible": true
+  },
+  "simulator": {
+    "entry": "scripts/mosaico_life.lua",
+    "files": [
+      "scripts/mosaico_life.lua"
+    ]
   }
 }
 ---
