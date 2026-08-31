@@ -146,6 +146,255 @@ height = math.floor(tonumber(height) or 0)
 if width < 64 then width = 240 end
 if height < 64 then height = 240 end
 
+
+-- Hosted Skill Simulator never calls lv_tick_inc, so LVGL widgets paint once
+-- and then freeze. Draw with display.* every frame, same as whack_mole_sim.
+local function on_web_sim()
+    local src = ""
+    pcall(function()
+        local info = debug.getinfo(1, "S")
+        src = tostring(info and info.source or "")
+    end)
+    if src:find("/uploads/", 1, true) then return true end
+    local ok, d = pcall(require, "display")
+    if not (ok and type(d) == "table" and type(d.begin_frame) == "function") then
+        return false
+    end
+    local f = io and io.open and io.open("/fatfs/skills/reaction_game/SKILL.md", "rb")
+    if f then
+        f:close()
+        return false
+    end
+    return true
+end
+
+local function run_web_display_sim()
+    local display = require("display")
+    local ok_t, touch = pcall(require, "touch")
+    if not ok_t then touch = nil end
+    pcall(function()
+        display.init(panel_handle, io_handle, width, height, panel_if)
+    end)
+    pcall(function() display.init(panel_handle, io_handle, width, height) end)
+    pcall(function() display.backlight(true) end)
+
+    local short = math.min(width, height)
+    local PAD = clamp(short / 60, 4, 14)
+    local GAP = clamp(short / 80, 3, 10)
+    local RADIUS = clamp(short / 48, 4, 14)
+    local FONT_LINE = 28
+    local is_land = width > height * 1.12
+    local hud_w, hud_h, hud_x, hud_y, play_x, play_y, play_w, play_h
+    if is_land then
+        hud_w = math.floor(0.26 * width)
+        local min_hud = math.max(96, FONT_LINE * 4, math.floor(0.20 * width))
+        local play_min = math.max(160, math.floor(0.55 * width))
+        local max_hud = math.max(min_hud, width - 2 * PAD - GAP - play_min)
+        if hud_w < min_hud then hud_w = min_hud end
+        if hud_w > max_hud then hud_w = max_hud end
+        hud_x, hud_y = PAD, PAD
+        hud_h = height - 2 * PAD
+        play_h = hud_h
+        play_w = width - hud_w - 2 * PAD - GAP
+        play_x = PAD + hud_w + GAP
+        play_y = PAD
+    else
+        hud_h = clamp(short / 10, FONT_LINE + 6, 72)
+        hud_x, hud_y = PAD, PAD
+        hud_w = width - 2 * PAD
+        play_x, play_y = PAD, PAD + hud_h + GAP
+        play_w = width - 2 * PAD
+        play_h = height - play_y - PAD
+    end
+    if hud_w < 1 then hud_w = 1 end
+    if hud_h < 1 then hud_h = 1 end
+    if play_w < 1 then play_w = 1 end
+    if play_h < 1 then play_h = 1 end
+
+    local function rect(x, y, w, h)
+        return { x = math.floor(x), y = math.floor(y), w = math.floor(w), h = math.floor(h) }
+    end
+    local function hit(px, py, r)
+        return px >= r.x and py >= r.y and px < (r.x + r.w) and py < (r.y + r.h)
+    end
+
+    local slots = {}
+    if is_land then
+        local n = 6
+        local g = GAP
+        if g * (n - 1) >= hud_h then g = 0 end
+        local body = hud_h - g * (n - 1)
+        local st = FONT_LINE
+        local btn = math.max(24, math.floor(body * 0.13))
+        local info = math.floor((body - st - 2 * btn) / 3)
+        if info < 1 then info = 1 end
+        local hs = { info, info, info, btn, btn, st }
+        local y = hud_y
+        for i = 1, n do
+            slots[i] = rect(hud_x, y, hud_w, hs[i])
+            y = y + hs[i] + g
+        end
+    else
+        local btn_w = math.max(40, math.floor(hud_w * 0.16))
+        local body = hud_w - 2 * btn_w - GAP * 4
+        if body < 3 then body = math.max(1, hud_w - 2 * btn_w) end
+        local box_w = math.floor(body / 3)
+        local x = hud_x
+        slots[1] = rect(x, hud_y, box_w, hud_h); x = x + box_w + GAP
+        slots[2] = rect(x, hud_y, box_w, hud_h); x = x + box_w + GAP
+        slots[3] = rect(x, hud_y, box_w, hud_h); x = x + box_w + GAP
+        slots[4] = rect(x, hud_y, btn_w, hud_h); x = x + btn_w + GAP
+        slots[5] = rect(x, hud_y, hud_x + hud_w - x, hud_h)
+        slots[6] = rect(play_x, play_y + play_h - FONT_LINE, play_w, FONT_LINE)
+    end
+    local play_r = rect(play_x, play_y, play_w, play_h)
+
+    local function draw_box(r, title, value, bg)
+        pcall(function()
+            display.fill_round_rect(r.x, r.y, r.w, r.h, RADIUS, bg or COLORS.panel_bg)
+        end)
+        pcall(function()
+            display.draw_round_rect(r.x, r.y, r.w, r.h, RADIUS, COLORS.border)
+        end)
+        local top = math.floor(r.h * 0.40)
+        if top < 12 then top = math.floor(r.h / 2) end
+        pcall(function()
+            display.draw_text_aligned(r.x, r.y, r.w, top, tostring(title), {
+                color = COLORS.dim, font_size = 16, align = "center", valign = "middle",
+            })
+        end)
+        pcall(function()
+            display.draw_text_aligned(r.x, r.y + top, r.w, r.h - top, tostring(value), {
+                color = COLORS.text, font_size = 16, align = "center", valign = "middle",
+            })
+        end)
+    end
+
+    local function draw_btn(r, label)
+        pcall(function()
+            display.fill_round_rect(r.x, r.y, r.w, r.h, RADIUS, COLORS.rst_bg)
+        end)
+        pcall(function()
+            display.draw_round_rect(r.x, r.y, r.w, r.h, RADIUS, COLORS.border)
+        end)
+        pcall(function()
+            display.draw_text_aligned(r.x, r.y, r.w, r.h, label, {
+                color = COLORS.text, font_size = 16, align = "center", valign = "middle",
+            })
+        end)
+    end
+
+    local game = logic.new()
+    logic.set_seed(game, math.floor(tonumber(system.millis()) or 1))
+    logic.start(game)
+    print(string.format("reaction web-sim start st=%s target=%s %dx%d",
+        tostring(game.state), tostring(game.wait_target_ms), width, height))
+
+    local running = true
+    local function handle_tap(px, py)
+        px = math.floor(tonumber(px) or -1)
+        py = math.floor(tonumber(py) or -1)
+        if hit(px, py, slots[4]) then
+            logic.start(game)
+            return
+        end
+        if hit(px, py, slots[5]) then
+            running = false
+            return
+        end
+        if hit(px, py, play_r) then
+            logic.tap(game)
+        end
+    end
+
+    local last_ms = math.floor(tonumber(system.millis()) or 0)
+    local frames = 0
+    while running do
+        if touch then
+            for _ = 1, 32 do
+                local ok_e, ev = pcall(function() return touch.poll() end)
+                if not ok_e or ev == nil or ev == false then break end
+                local typ = ev.type or ev.event
+                local dragging = ev.dragging
+                if typ == "up" or (typ == "down" and not dragging) then
+                    handle_tap(ev.x or ev.px, ev.y or ev.py)
+                end
+                if not running then break end
+            end
+        end
+        if not running then break end
+        local now_ms = math.floor(tonumber(system.millis()) or 0)
+        local dt = 16
+        if now_ms > last_ms then
+            dt = math.floor(now_ms - last_ms)
+            last_ms = now_ms
+            if dt < 1 then dt = 16 end
+            if dt > 250 then dt = 16 end
+        else
+            last_ms = now_ms
+            dt = 16
+        end
+        logic.update(game, dt)
+        frames = frames + 1
+
+        pcall(function()
+            display.begin_frame({ clear = true, color = COLORS.screen_bg })
+        end)
+        pcall(function()
+            display.fill_round_rect(play_r.x, play_r.y, play_r.w, play_r.h, RADIUS, game.play_color)
+        end)
+        pcall(function()
+            display.draw_round_rect(play_r.x, play_r.y, play_r.w, play_r.h, RADIUS, COLORS.border)
+        end)
+        local inner = math.max(GAP, 8)
+        pcall(function()
+            display.draw_text_aligned(play_r.x + inner, play_r.y + math.floor(play_r.h * 0.32),
+                play_r.w - 2 * inner, 36, tostring(game.title or ""), {
+                    color = COLORS.text, font_size = 22, align = "center", valign = "middle",
+                })
+        end)
+        pcall(function()
+            display.draw_text_aligned(play_r.x + inner, play_r.y + math.floor(play_r.h * 0.32) + 40,
+                play_r.w - 2 * inner, 48, tostring(game.subtitle or ""), {
+                    color = COLORS.text, font_size = 16, align = "center", valign = "middle",
+                })
+        end)
+        draw_box(slots[1], "ROUND", logic.round_text(game))
+        draw_box(slots[2], "BEST", logic.best_text(game))
+        draw_box(slots[3], "FALSE", logic.false_text(game))
+        draw_btn(slots[4], "RST")
+        draw_btn(slots[5], "EXIT")
+        local st_text, st_color = "WAIT", COLORS.text
+        if game.state == logic.STATE_FINISHED then
+            st_text, st_color = "DONE", COLORS.done
+        elseif game.state == logic.STATE_READY then
+            st_text = "TAP"
+        elseif game.state == logic.STATE_RESULT then
+            if game.was_false_start then
+                st_text, st_color = "OOPS", COLORS.oops
+            else
+                st_text = "OK"
+            end
+        end
+        pcall(function()
+            display.draw_text_aligned(slots[6].x, slots[6].y, slots[6].w, slots[6].h, st_text, {
+                color = st_color, font_size = 16, align = "center", valign = "middle",
+            })
+        end)
+        pcall(function() display.present() end)
+        pcall(function() display.end_frame() end)
+        pcall(function() delay.delay_ms(16) end)
+    end
+    pcall(function() display.deinit() end)
+    print("reaction web-sim exit frames=" .. tostring(frames))
+end
+
+if on_web_sim() then
+    print("reaction: using display web-sim path")
+    run_web_display_sim()
+    return
+end
+
 lvgl.init(panel_handle, io_handle, width, height, panel_if, {
     buffer_lines = 40,
     tick_ms = 5,
@@ -676,19 +925,42 @@ end
 
 scr:load()
 logic.start(game)
+print(string.format("reaction start st=%s target=%s millis=%s",
+    tostring(game.state), tostring(game.wait_target_ms),
+    tostring(system.millis())))
 refresh()
 
-local last_ms = system.millis()
-while running do
-    lvgl.process_events(0)
-    local now_ms = system.millis()
-    local dt = math.floor(now_ms - last_ms)
-    if dt < 0 or dt > 1000 then dt = 16 end
-    last_ms = now_ms
-    logic.update(game, dt)
-    refresh()
-    delay.delay_ms(16)
+-- Always yield with delay.delay_ms. If millis is frozen, use a 16ms virtual tick.
+-- Wrap the loop so a refresh/update error cannot silently freeze Wait.
+local last_ms = math.floor(tonumber(system.millis()) or 0)
+local frames = 0
+local ok_run, err_run = xpcall(function()
+    while running do
+        frames = frames + 1
+        pcall(function()
+            if type(lvgl.tick_inc) == "function" then lvgl.tick_inc(16) end
+        end)
+        pcall(function() lvgl.process_events(0) end)
+        local now_ms = math.floor(tonumber(system.millis()) or 0)
+        local dt = 16
+        if now_ms > last_ms then
+            dt = math.floor(now_ms - last_ms)
+            last_ms = now_ms
+            if dt < 1 then dt = 16 end
+            if dt > 250 then dt = 16 end
+        else
+            last_ms = now_ms
+            dt = 16
+        end
+        logic.update(game, dt)
+        pcall(refresh)
+        pcall(function() delay.delay_ms(16) end)
+    end
+end, debug.traceback)
+if not ok_run then
+    print("[reaction] ERROR: " .. tostring(err_run))
 end
+print("[reaction] loop exit frames=" .. tostring(frames) .. " running=" .. tostring(running))
 pcall(function()
     if lvgl.deinit then lvgl.deinit() end
 end)
