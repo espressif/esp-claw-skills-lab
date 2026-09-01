@@ -1,7 +1,8 @@
 -- Game of Life — immersive Rainbow Conway B3/S23 for ESP-Claw displays.
 -- Full-screen ink canvas (no HUD / buttons / status text).
--- Gestures: drag paint, long-press reset, shake (IMU).
--- Optional IMU via generic `imu` + board device `imu_sensor`.
+-- Gestures: drag paint, long-press reset; shake (IMU) when Lua imu module exists.
+-- Mosaico QSPI AMOLED (CO5300 480x480): full-frame begin_frame/present/end_frame only.
+-- On current Mosaico firmware, require("imu") is unavailable so shake is disabled.
 
 local bm = require("board_manager")
 local display = require("display")
@@ -29,21 +30,21 @@ local function clamp(v, lo, hi)
 end
 
 local FRAME_MS = 5          -- 200 Hz input is responsive without starving the S3 render task
-local DISPLAY_MS = 25       -- ~40 FPS visual cadence, independent from Life steps
+local DISPLAY_MS = 40       -- 25 fps present probe
 local IMU_POLL_MS = 40
-local STEP_MS = 90          -- ~11 gen/s; three visual frames make lifecycle motion legible
-local RUN_TIME_MS = 180000
-local LONG_PRESS_MS = 700   -- reset (touch or button-only)
-local DRAG_THRESH_PX = 4    -- start paint quickly; was 10 and felt like low touch rate
+local STEP_MS = 40          -- faster gens; present stays DISPLAY_MS
+local RUN_TIME_MS = 0        -- 0 = until launcher stops the skill
+local LONG_PRESS_MS = 550   -- hold still to reset
+local DRAG_THRESH_PX = 16   -- jitter below this is still a long-press, not a drag
 local SHAKE_COOLDOWN_MS = 900
 local IMU_WARMUP_SAMPLES = 12
 -- Relative spike vs resting accel magnitude; scale-free so raw LSB / mg / g all work.
-local IMU_SHAKE_RATIO = 0.55
+local IMU_SHAKE_RATIO = 0.38
 -- Balanced composition (~S3-BOX 320x240 → cell≈9 → ~910 tiles).
 local TARGET_CELLS = 900
 local MIN_CELL_PX = 9
 local MAX_CELL_PX = 24
-local SHAKE_FX_MS = 200
+local SHAKE_FX_MS = 400
 local BIRTH_PULSE_FRAMES = 3
 local DEATH_FADE_FRAMES = 2
 local TRANSITION_LIMIT = 240
@@ -67,6 +68,9 @@ if type(args_tbl.target_cells) == "number" and args_tbl.target_cells >= 80 then
 end
 if type(args_tbl.cell_px) == "number" and args_tbl.cell_px >= 4 then
   cell_px_override = math.floor(args_tbl.cell_px)
+end
+if type(args_tbl.run_time_ms) == "number" and args_tbl.run_time_ms >= 0 then
+  RUN_TIME_MS = math.floor(args_tbl.run_time_ms)
 end
 if type(args_tbl.transition_limit) == "number" and args_tbl.transition_limit >= 0 then
   TRANSITION_LIMIT = math.floor(args_tbl.transition_limit)
@@ -92,10 +96,10 @@ end
 
 local function auto_tune_timing(n)
   if not display_ms_overridden then
-    DISPLAY_MS = 25
+    DISPLAY_MS = 40
   end
   if not step_ms_overridden then
-    STEP_MS = n > 1400 and 100 or 90
+    STEP_MS = 40
   end
 end
 
@@ -405,6 +409,8 @@ local live_count = 0
 local carry_fx_buf = {}
 local keep_fx_buf = {}
 local generation = 0
+local rendered_frames = 0
+local tick_count = 0
 
 for i = 1, n_cells do
   cells[i] = 0
@@ -906,9 +912,15 @@ local function clear_cell_index(i)
 end
 
 local function draw_background()
-  display.fill_rect(0, 0, width, height, bg_colors[1])
-  for b = 1, BG_BANDS do
-    display.fill_rect(0, grid_oy + (b - 1) * cell, width, cell, bg_colors[b])
+  local bands = 6
+  local y = 0
+  for b = 1, bands do
+    local y1 = height * b // bands
+    local idx = 1 + (b - 1) * (BG_BANDS - 1) // (bands - 1)
+    if idx < 1 then idx = 1 end
+    if idx > BG_BANDS then idx = BG_BANDS end
+    display.fill_rect(0, y, width, y1 - y, bg_colors[idx])
+    y = y1
   end
 end
 
@@ -922,48 +934,28 @@ local function draw_live_index(i, offset_x, offset_y)
   scratch_color.r = color_r[i]
   scratch_color.g = color_g[i]
   scratch_color.b = color_b[i]
-
   local core = scratch_color
   if pulse[i] > 0 then
     local t = pulse[i] / BIRTH_PULSE_FRAMES
     core = mix_rgb_into(scratch_core, scratch_color, WHITE, 0.10 + t * 0.12)
-  end
-
-  if pulse[i] > 0 then
     local size = pulse[i] == 3 and math.max(2, cell // 4)
       or (pulse[i] == 2 and math.max(3, cell // 2) or cell)
-    clear_cell_index(i)
     display.fill_rect(px + (cell - size) // 2, py + (cell - size) // 2, size, size, core)
     return
   end
-
-  -- At 9 px the inset is still subtle; one fill keeps the ~900-cell path fast.
-  if cell <= 10 then
-    display.fill_rect(px, py, cell, cell, core)
-    return
-  end
-
-  local base = mix_rgb_into(scratch_base, INK, core, 0.58)
-  display.fill_rect(px, py, cell, cell, base)
-
-  local inset = (cell >= 5) and 1 or 0
-  if inset > 0 and cell - inset * 2 > 0 then
-    display.fill_rect(px + inset, py + inset, cell - inset * 2, cell - inset * 2, core)
-  else
-    display.fill_rect(px, py, cell, cell, core)
-  end
-
+  display.fill_rect(px, py, cell, cell, core)
 end
 
-local function draw_fade_index(i)
+local function draw_fade_index(i, offset_x, offset_y)
   scratch_fade.r = fade_r[i]
   scratch_fade.g = fade_g[i]
   scratch_fade.b = fade_b[i]
-  clear_cell_index(i)
   local size = fade_age[i] >= 2 and math.max(3, cell * 3 // 4) or math.max(2, cell // 3)
   local x = (i - 1) % grid_w
   local y = (i - 1) // grid_w
   local px, py = cell_px(x, y)
+  px = px + (offset_x or 0)
+  py = py + (offset_y or 0)
   display.fill_rect(px + (cell - size) // 2, py + (cell - size) // 2, size, size, scratch_fade)
 end
 
@@ -1002,7 +994,17 @@ end
 local function draw_scene(offset_x, offset_y)
   draw_background()
   for li = 1, #live_list do
-    draw_live_index(live_list[li], offset_x, offset_y)
+    local i = live_list[li]
+    draw_live_index(i, offset_x, offset_y)
+    if pulse[i] > 0 then
+      pulse[i] = pulse[i] - 1
+    end
+  end
+  for i = 1, n_cells do
+    if cells[i] == 0 and fade_age[i] > 0 then
+      draw_fade_index(i, offset_x, offset_y)
+      fade_age[i] = fade_age[i] - 1
+    end
   end
 end
 
@@ -1156,10 +1158,9 @@ local function draw_shaken_scene()
 end
 
 local function draw_event_feedback()
-  if event_feedback_ms <= 0 then return end
-  local level = math.max(1, math.ceil(event_feedback_ms / 60))
-  if level == event_feedback_draw_level then return end
-  event_feedback_draw_level = level
+  if event_feedback_ms <= 0 then
+    return
+  end
   local energy = clamp(event_feedback_ms / 180, 0, 1)
   local outer = mix_rgb_into(scratch_edge_outer, INK, event_feedback_color, 0.20 + 0.52 * energy)
   local inner = mix_rgb_into(scratch_edge_inner, INK, event_feedback_color, 0.08 + 0.30 * energy)
@@ -1194,9 +1195,19 @@ local function draw_world(with_glow)
 end
 
 local function render(force_glow)
-  draw_world(force_glow == true)
+  display.begin_frame({ clear = true, color = INK })
+  if shake_fx_ms > 0 then
+    draw_shaken_scene()
+  else
+    draw_scene(0, 0)
+  end
   draw_event_feedback()
   display.present()
+  display.end_frame()
+  need_full_redraw = false
+  clear_dirty()
+  world_dirty = false
+  rendered_frames = rendered_frames + 1
   last_display_ms = 0
 end
 
@@ -1245,11 +1256,14 @@ local function init_imu()
     return false
   end
 
-  -- Generic board_manager device name. Works on any board that declares an IMU
-  -- as `imu_sensor` (or override via args.imu_device). No chip/board branching.
-  local opened, sensor_or_err = pcall(imu.new, imu_device_name)
-  if not opened then
-    print("[mosaico] INFO: imu.new(" .. imu_device_name .. ") failed: " .. tostring(sensor_or_err))
+  -- Other Mosaico skills open IMU with imu.new() and no name. Named
+  -- imu_sensor is only a fallback for boards that require it.
+  local opened, sensor_or_err = pcall(imu.new)
+  if not opened or not sensor_or_err then
+    opened, sensor_or_err = pcall(imu.new, imu_device_name)
+  end
+  if not opened or not sensor_or_err then
+    print("[mosaico] INFO: imu.new failed: " .. tostring(sensor_or_err))
     return false
   end
 
@@ -1460,7 +1474,6 @@ end
 
 init_imu()
 
-display.begin_frame({ clear = true, color = INK })
 seed_demo()
 mark_scene_dirty()
 render(true)
@@ -1481,8 +1494,18 @@ else
 end
 
 local function main_loop()
-  local ticks = math.max(1, RUN_TIME_MS // FRAME_MS)
-  for _ = 1, ticks do
+  local ticks = 0
+  if RUN_TIME_MS > 0 then
+    ticks = math.max(1, RUN_TIME_MS // FRAME_MS)
+  end
+  local n = 0
+  while true do
+    if ticks > 0 then
+      n = n + 1
+      if n > ticks then
+        break
+      end
+    end
     local ok_input = true
     if input_mode == "lcd_touch" then
       ok_input = poll_touch()
@@ -1534,6 +1557,10 @@ local function main_loop()
       render(false)
     end
 
+    tick_count = tick_count + 1
+    if tick_count % 1000 == 0 then
+      print(string.format("[mosaico] FPS_STATS ticks=%d frames=%d gens=%d", tick_count, rendered_frames, generation))
+    end
     delay.delay_ms(FRAME_MS)
   end
 end

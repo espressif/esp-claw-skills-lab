@@ -1,13 +1,31 @@
 ---
 {
   "name": "game_of_life",
-  "description": "Play an immersive full-screen Rainbow Conway's Game of Life on an ESP-Claw display. Tap to seed patterns, drag to paint or erase cells, long-press to reset, and shake an IMU-equipped board to scatter life. Uses Conway B3/S23 with no on-screen controls; LCD touch is preferred and IMU support is optional.",
+  "description": "Play an immersive full-screen Rainbow Conway's Game of Life on ESP-Claw / Mosaico displays. Adapted for QSPI AMOLED using paced full-frame present. Tap to seed, drag to paint or erase, long-press to reset. Shake-to-scatter needs the Lua imu module; on current Mosaico firmware imu is unavailable so shake is temporarily disabled. Conway B3/S23, chrome-less full-screen; LCD touch preferred.",
   "author": "superjames",
   "metadata": {
-    "category": ["game", "ui"],
-    "tags": ["life", "conway", "rainbow", "arcade", "demo", "button", "touch", "shake", "accelerometer", "immersive"],
-    "peripherals": ["display"],
-    "cap_groups": ["cap_lua"],
+    "category": [
+      "game",
+      "ui"
+    ],
+    "tags": [
+      "life",
+      "conway",
+      "rainbow",
+      "arcade",
+      "demo",
+      "button",
+      "touch",
+      "shake",
+      "accelerometer",
+      "immersive"
+    ],
+    "peripherals": [
+      "display"
+    ],
+    "cap_groups": [
+      "cap_lua"
+    ],
     "manage_mode": "web"
   },
   "execution": {
@@ -28,9 +46,9 @@
 
 # Game of Life
 
-Use this skill when the user wants to play Conway's Game of Life, Rainbow Life, a Mosaico life demo, shake-to-scatter cells, paint living tiles on the LCD, or launch an interactive mosaic / cellular automata game.
+Use this skill when the user wants to play Conway's Game of Life, Rainbow Life, a Mosaico life demo, paint living tiles on the LCD, or launch an interactive mosaic / cellular automata game.
 
-Requires a display. Chrome-less full-screen ink canvas — no HUD buttons and no generation/status text. Uses LCD touch gestures when available; otherwise falls back to a button. If the board declares an IMU as `imu_sensor` (or the caller passes `args.imu_device`), physical board shaking triggers scatter. Audio is not required. Do not restrict this skill to a specific board model or IMU chip name.
+Requires a display. Tuned for Mosaico QSPI AMOLED (command-mode GRAM): each frame uses begin_frame, draw, present, end_frame; avoid present_full and clear=false partial paths on current firmware. Chrome-less full-screen ink canvas — no HUD buttons and no generation/status text. Uses LCD touch gestures when available; otherwise falls back to a button. IMU shake is optional and soft-required via pcall(require, "imu"). On current Mosaico firmware the Lua imu module is not registered, so shake-to-scatter is temporarily unavailable even though the board has a hardware IMU. When imu is present and the board declares imu_sensor (or args.imu_device is set), shaking still scatters life. Audio is not required.
 
 Run exactly one script with `lua_run_script` unless the user explicitly asks to run another application.
 
@@ -43,6 +61,13 @@ Tool call:
 ```json
 {"path":"{CUR_SKILL_DIR}/scripts/mosaico_life.lua","args":{}}
 ```
+
+
+## Mosaico / QSPI notes
+
+- Target panel: 480x480 QSPI AMOLED (CO5300-class GRAM). A full RGB565 frame is about 450 KB, so refresh uses paced full-frame present rather than RGB-style continuous scanout.
+- Safe Lua display path on current Mosaico image: begin_frame({ clear = true }) then draw then present() then end_frame().
+- Shake/IMU: code keeps optional IMU support, but without the Lua imu module shake does nothing until firmware enables it.
 
 Optional long-running launch (preferred for interactive play so the agent stays responsive):
 
@@ -61,9 +86,9 @@ Optional args:
 - `imu_device`: board_manager device name for the IMU (default `imu_sensor`). Use this only when the board YAML uses a non-default device id — never hard-code a board product name.
 - `shake_sensitivity`: number > 0 (default `1.0`). Higher = easier to trigger physical shake.
 - `touch_ms`: touch/button poll interval in ms (default `4`, ~250 Hz). Lower = snappier strokes.
-- `display_ms`: full-scene refresh interval in ms (default auto ~36–50 from tile count). Raise on slower panels if tearing/CPU bound.
-- `step_ms`: Life generation interval while playing (default auto ~110–150 from tile count).
-- `target_cells`: soft budget for grid tiles (default `240`). Larger panels grow cell pixels instead of denser grids, so MCU `fill_rect` cost stays bounded.
+- `display_ms`: visual refresh interval in ms (default `25` on RGB framebuffer panels, `80` on SPI/QSPI panels).
+- `step_ms`: Life generation interval (default `90` on RGB framebuffer panels, `150` on SPI/QSPI panels).
+- `target_cells`: soft budget for grid tiles (default `900` on RGB framebuffer panels, `240` on SPI/QSPI panels). Larger panels grow cell pixels instead of denser grids.
 - `cell_px`: force tile pixel size (overrides `target_cells` sizing). Use only for manual tuning.
 
 ## Recommended flow
@@ -85,7 +110,8 @@ Optional args:
 - Shake moves life in 3×3 blocks (1–3 steps) and plants viable sparks so the board does not die instantly.
 - Physical shake detection is relative to resting acceleration (scale-free), so it works across IMU backends without per-chip thresholds.
 - A restrained colored background and edge feedback add atmosphere without particle halos or on-screen chrome.
-- Tile count is capped (~240) for MCU smoothness.
+- Tile density is panel-aware: about 900 cells on RGB framebuffer panels and about 240 on SPI/QSPI panels.
+- SPI/QSPI panels automatically use horizontal dirty-band presents, final-state transitions, and a lower default cadence; RGB framebuffer panels retain the richer high-frame-rate path.
 - Single-device port of the original web demo; multi-tile linking is out of scope for this Lua skill.
 
 ## References
