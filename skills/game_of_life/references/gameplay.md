@@ -68,6 +68,15 @@ Rules:
 
 ## Performance (embedded)
 
+The renderer selects its defaults from the display interface reported by Board Manager:
+
+- RGB framebuffer panels: ~900 tiles, 25 ms visual cadence, 90 ms simulation cadence, staged birth/death animation.
+- SPI/QSPI panels such as ESP-Mosaico: ~240 tiles, 80 ms visual cadence, 150 ms simulation cadence, final-state transitions.
+- QSPI/Mosaico draws into one frame and calls `present()` once. Per-band `present()` and per-row background fills are disabled because they paint the panel layer by layer.
+- Unknown panel interfaces default to the serial path so a QSPI screen is never given the RGB renderer. Override with `args.serial_panel`.
+- Consecutive dead cells on the same row are coalesced into one `fill_rect`. Live tiles use a single fill (no inset / birth spark).
+- The four-edge interaction flash and multi-frame shake displacement stay disabled on serial panels.
+
 Grid size targets **~910 tiles** on 320×240 (35×26, cell ≈ 9px), with 90 ms simulation and 25 ms visual cadences:
 
 - Each Life step only `fill_rect`s cells that changed (typically 5–15% of the board).
