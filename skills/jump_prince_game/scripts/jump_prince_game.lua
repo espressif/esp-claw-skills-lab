@@ -1,30 +1,3 @@
--- jump_prince_game.lua: entry script for the Jump Prince skill (esp-claw).
---
--- Run via lua_run_script_async:
---   path:      {CUR_SKILL_DIR}/scripts/jump_prince_game.lua
---   args:      { assets_dir = "{CUR_SKILL_DIR}/assets" }   -- required
---   name:      jump_prince_game
---   exclusive: display
---   timeout:   0                                           -- until cancelled
---
--- Layout is FULL-RECTANGLE (no circular safe-area, no lock_obj(scr)):
--- header on top, controls on the bottom, playfield FILLS the leftover
--- rectangle with SQUARE tiles. Width/height always come from board_manager
--- (never assume 800x480 or 480x480).
---
--- vis_tile = min(floor(W/MAP_W), floor(avail_h/MAP_H)), min 8.
--- vis_w=16*vis_tile, vis_h=12*vis_tile, centered in leftover (letterbox
--- extra pixels, do not stretch tiles). Header/control shrink slightly when
--- that lets the map reach the width-limited tile size.
---   800x480: preferred chrome 64+76, leftover 340 -> vis_tile 28, 448x336.
---   480x480: shrink chrome so vis_tile can be 30 and fill 480x360.
---
--- Device (WEB_SIM false): tiled .spr RGB565 canvases at vis_tile. Never a
--- full-playfield canvas, never PNG decode. Tiles/player sit on `scr`.
--- Web sim: WASM LVGL without lv_tick_inc never flushes later widgets, so
--- many lvgl.image/canvas tiles only show the first row. WEB_SIM therefore
--- draws the 16x12 map each frame through display.begin_frame / blit /
--- present / end_frame (software framebuffer, same as snake_game).
 
 local board_manager = require("board_manager")
 local delay_ok, delay = pcall(require, "delay")
@@ -50,12 +23,8 @@ end
 local logic = require("jp_logic")
 local spr = require("jp_spr")
 local input = require("jp_input")
+if type(input) ~= "table" then error("jp_input load failed") end
 
--- Web simulator: keep WEB_SIM for storage/delay/system fallbacks.
--- WASM lv_conf is LV_COLOR_DEPTH 32 + LODEPNG/FS_STDIO; rgb565 canvas
--- buffers often composite blank. Device uses .spr + RGB565 canvas.
--- WEB_SIM draws lvgl.image PNGs exported from the same .spr files.
--- Detect the same way other skills do (args, source path, WASM userdata).
 local WEB_SIM = false
 
 local function source_path()
@@ -73,7 +42,10 @@ local function detect_web_sim()
             return true
         end
     end
-    local src = source_path()
+    local src = source_path():gsub("\\", "/")
+    if src:find("/nand/") or src:find("^/fatfs/") then
+        return false
+    end
     if src:find("^/skills/") or src:find("^/uploads/") then
         return true
     end
@@ -81,14 +53,7 @@ local function detect_web_sim()
 end
 
 local function mark_sim_from_obj(obj)
-    if WEB_SIM or obj == nil then
-        return
-    end
-    -- WASM lvgl userdata has no __newindex (same as whack_mole_game).
-    local ok = pcall(function() obj._jp_probe = true end)
-    if not ok then
-        WEB_SIM = true
-    end
+    return
 end
 
 local function now_ms()
@@ -150,11 +115,6 @@ end
 
 local TILE_PALETTE = { "#8B6914", "#6B4F2A", "#A67C52", "#5C4033", "#7a5a32", "#9A7B4F" }
 
-
--- LVGL objects scroll by default; that steals touches and draws a
--- scrollbar on the header. Same helper as whack_mole_game.
--- Player-facing stage: spawn is screen_index=5 (bottom). Climbing
--- decreases screen_index, so Stage = 6 - screen_index, clamped 1..5.
 local function stage_num(screen_index)
     local n = 6 - (tonumber(screen_index) or 0)
     if n < 1 then n = 1 end
@@ -284,6 +244,23 @@ local function obj_delete(obj)
     pcall(function() obj:delete() end)
 end
 
+local function lv_after_flush()
+    sleep_ms(40)
+end
+
+local function lv_retry(fn, tries)
+    tries = tries or 8
+    for _ = 1, tries do
+        local ok = pcall(fn)
+        if ok then
+            return true
+        end
+        sleep_ms(20)
+        pcall(lvgl.process_events, 0)
+    end
+    return false
+end
+
 local function main()
     local cfg = parse_args()
     if not cfg.assets_dir or cfg.assets_dir == "" then
@@ -316,8 +293,7 @@ local function main()
         print("jp: sprite bank missing at " .. bank_path)
     end
     if not bank then
-        -- Widget tiles still play in the web simulator without RGB565.
-        WEB_SIM = true
+        print("jp: no sprite bank; device grid/color fallback")
     end
 
     local USE_PNG = false
@@ -328,13 +304,10 @@ local function main()
         local path = sprite_png_file(name):gsub("\\", "/")
         return path
     end
-    if WEB_SIM then
-        if read_bytes(sprite_png_file("tile_0_0")) and read_bytes(sprite_png_file("player_r0")) then
-            USE_PNG = true
-            print("jp: web sim using lvgl.image png sprites")
-        else
-            print("jp: web sim png missing; will try rgb565 canvas")
-        end
+    local force_png = nil
+    if type(args) == "table" then
+        if args.use_png == true then force_png = true end
+        if args.use_png == false then force_png = false end
     end
 
     local sprite_cache = {}
@@ -362,8 +335,6 @@ local function main()
     local panel_handle, io_handle, width, height, panel_if =
         board_manager.get_display_lcd_params("display_lcd")
 
-    -- WEB_SIM: take the software framebuffer BEFORE lvgl.init so present()
-    -- actually owns the panel (snake_game / game_of_life do this).
     local disp = nil
     local disp_ready = false
     local image_mod = nil
@@ -409,8 +380,6 @@ local function main()
         lvgl.indev_register("touch", touch_handle)
     end
 
-    -- Preferred chrome on a 480-tall panel: header 64, controls 76.
-    -- Shrink toward mins when that lets vis_tile reach floor(W/MAP_W).
     local MIN_HEADER_H = 44
     local MIN_CONTROL_H = 56
     local HEADER_H = math.max(56, math.floor(height * 0.135))
@@ -440,14 +409,22 @@ local function main()
     pcall(function() scr:set_size(width, height) end)
     scr:set_style({ bg_color = COLORS.sky, pad = 0, border_width = 0 })
     mark_sim_from_obj(scr)
-    if WEB_SIM and not USE_PNG then
+    local want_png = force_png
+    if want_png == nil then
+        want_png = WEB_SIM
+    end
+    if want_png and not USE_PNG then
         if read_bytes(sprite_png_file("tile_0_0")) and read_bytes(sprite_png_file("player_r0")) then
             USE_PNG = true
-            print("jp: web sim using lvgl.image png sprites")
+            print("jp: using lvgl.image png sprites screen=" .. tostring(width) .. "x" .. tostring(height))
+        else
+            print("jp: png missing; rgb565 canvas fallback")
         end
     end
-    if WEB_SIM then
-        print("jp: web sim png=" .. tostring(USE_PNG))
+    print("jp: png=" .. tostring(USE_PNG) .. " sim=" .. tostring(WEB_SIM))
+    local IS_QSPI_SCREEN = (not WEB_SIM) and width <= 480 and height <= 480
+    if IS_QSPI_SCREEN then
+        print("jp: qspi spr map=canvas player=overlay")
     end
 
     local avail_w = width
@@ -468,7 +445,6 @@ local function main()
     pcall(function() header:set_style({ border_width = 0, pad = 0 }) end)
     local label_y = math.floor((HEADER_H - 22) / 2)
     if label_y < 8 then label_y = 8 end
-    -- Centered so left Exit/Pause and right Restart icons have room.
     local label_stage = lvgl.label(header, {
         x = math.floor((width - 90) / 2), y = label_y,
         text = "Stage 1",
@@ -493,15 +469,69 @@ local function main()
 
     local tile_px = vis_tile
     local field_w, field_h = vis_w, vis_h
-    -- Never allocate a full-playfield RGB565 canvas: 448x336 is ~301KB and
-    -- redrawing it every fall-frame (Lua string concat + blit) freezes the
-    -- device. Grid of per-tile canvases plus one player overlay is the path
-    -- that was playable.
+    local sky_px = hex_to_rgb565le(COLORS.sky)
+    local sky_tile_row = string.rep(sky_px, tile_px)
+    local sky_row = string.rep(sky_px, field_w)
     local render_mode = "grid"
     local canvas = nil
+    local map_pack = {}
     local field_bg = nil
     local cell_free = {}
     local cell_at = {}
+    local map_host = nil
+    do
+        local ok, obj = pcall(lvgl.canvas, scr, {
+            x = vis_x, y = vis_y, w = vis_w, h = vis_h,
+            bg_color = COLORS.sky,
+            border_width = 0,
+            pad = 0,
+            color_format = "rgb565",
+        })
+        if ok and obj then
+            canvas = lock_obj(obj)
+            pcall(function() canvas:clear_flag("CLICKABLE") end)
+            pcall(function() canvas:set_size(vis_w, vis_h) end)
+            render_mode = "single"
+            print(string.format("jp: map canvas %dx%d", vis_w, vis_h))
+        else
+            print("jp: map canvas skipped " .. tostring(obj))
+        end
+    end
+    if render_mode ~= "single" then
+    do
+        local ok, obj = pcall(lvgl.container, scr, {
+            x = -4000, y = vis_y, w = vis_w, h = vis_h,
+            bg_opa = 0,
+            radius = 0,
+            pad = 0,
+            border_width = 0,
+        })
+        if ok and obj then
+            map_host = lock_obj(obj)
+            pcall(function() map_host:set_size(vis_w, vis_h) end)
+            pcall(function() map_host:clear_flag("CLICKABLE") end)
+            pcall(function()
+                map_host:set_style({ bg_opa = 0, pad = 0, border_width = 0 })
+            end)
+            pcall(function()
+                map_host:set_scroll({ dir = "none", scrollbar = "off" })
+            end)
+            print("jp: map host ready")
+        else
+            print("jp: map host skipped " .. tostring(obj))
+        end
+    end
+    end
+    local function map_host_hide()
+        if not map_host then return end
+        pcall(function() map_host:add_flag("HIDDEN") end)
+        obj_set_pos(map_host, -4000, vis_y)
+    end
+    local function map_host_show()
+        if not map_host then return end
+        obj_set_pos(map_host, vis_x, vis_y)
+        pcall(function() map_host:clear_flag("HIDDEN") end)
+    end
     local player_cv = nil
     local player_spr = nil
     local player_frames = {}
@@ -536,113 +566,11 @@ local function main()
     end
 
     local function try_make_sim_canvas(parent, x, y, w, h)
-        -- WASM is LV_COLOR_DEPTH 32; rgb565 buffers often composite blank.
-        local formats = { nil, "true_color", "argb8888", "xrgb8888", "rgb888", "rgb565" }
-        for _, fmt in ipairs(formats) do
-            local obj = try_make_canvas(parent, x, y, w, h, fmt)
-            if obj then
-                return obj
-            end
-        end
-        return nil
+        return try_make_canvas(parent, x, y, w, h)
     end
-
     local function try_make_image(parent, x, y, w, h, src)
-        if type(lvgl.image) ~= "function" then
-            return nil
-        end
-        local srcs = { src }
-        if type(src) == "string" and src:sub(1, 2) == "A:" then
-            srcs[#srcs + 1] = src:sub(3)
-        elseif type(src) == "string" then
-            srcs[#srcs + 1] = "A:" .. src
-        end
-        for _, s in ipairs(srcs) do
-            local ok, obj = pcall(lvgl.image, parent, {
-                x = x, y = y, w = w, h = h,
-                src = s,
-                border_width = 0,
-                pad = 0,
-            })
-            if ok and obj then
-                lock_obj(obj)
-                pcall(function() obj:clear_flag("CLICKABLE") end)
-                pcall(function() obj:set_size(w, h) end)
-                pcall(function() obj:set_width(w) end)
-                pcall(function() obj:set_height(h) end)
-                pcall(function()
-                    obj:set_style({ border_width = 0, pad = 0, bg_opa = 0 })
-                end)
-                return obj
-            end
-        end
         return nil
     end
-
-    print(string.format(
-        "jp: skip vis canvas vis_tile=%d vis=%dx%d rgb565=%dB (grid only)",
-        vis_tile, vis_w, vis_h, vis_w * vis_h * 2))
-
-    -- WEB_SIM only: software framebuffer. Do not create dozens of lvgl
-    -- tile widgets (WASM without lv_tick_inc never flushes later ones).
-    if WEB_SIM and not disp_ready then
-        local okd, dmod = pcall(require, "display")
-        if okd and type(dmod) == "table" then
-            disp = dmod
-            local oki, ierr = pcall(disp.init, panel_handle, io_handle, width, height, panel_if)
-            if oki then
-                disp_ready = true
-                pcall(function()
-                    if disp.backlight then disp.backlight(true) end
-                end)
-                print("jp: web sim display framebuffer ready (late)")
-            else
-                print("jp: display.init failed " .. tostring(ierr))
-            end
-        else
-            print("jp: require(display) failed " .. tostring(dmod))
-        end
-        if image_mod == nil then
-            local oki, im = pcall(require, "image")
-            if oki and type(im) == "table" then
-                image_mod = im
-            end
-        end
-    end
-    if WEB_SIM and disp_ready then
-        print("jp: web sim display framebuffer ready")
-        if image_mod then
-            print("jp: web sim image module ready")
-        end
-    end
-
-    if not disp_ready then
-        -- Device (and sim fallback): sky only on scr. Tiles are NOT children.
-        field_bg = lock_obj(lvgl.container(scr, {
-            x = vis_x, y = vis_y, w = vis_w, h = vis_h,
-            bg_color = COLORS.sky,
-            pad = 0,
-            border_width = 0,
-            scrollbar = "off",
-        }))
-        pcall(function() field_bg:set_size(vis_w, vis_h) end)
-        pcall(function() field_bg:set_pos(vis_x, vis_y) end)
-        pcall(function() field_bg:clear_flag("CLICKABLE") end)
-        pcall(function()
-            field_bg:set_style({ border_width = 0, pad = 0, bg_color = COLORS.sky })
-        end)
-        print("jp: render=grid cell=" .. tostring(vis_tile) .. "x" .. tostring(vis_tile)
-            .. " (sprite tiles + player)")
-    else
-        print("jp: render=display cell=" .. tostring(vis_tile) .. "x" .. tostring(vis_tile)
-            .. " map=" .. tostring(logic.MAP_W) .. "x" .. tostring(logic.MAP_H)
-            .. " vis=" .. tostring(vis_w) .. "x" .. tostring(vis_h))
-    end
-
-    local sky_px = hex_to_rgb565le(COLORS.sky)
-    local sky_row = string.rep(sky_px, field_w)
-    local sky_tile_row = string.rep(sky_px, tile_px)
-
     local function get_scaled(name)
         if scaled_cache[name] then
             return scaled_cache[name]
@@ -673,7 +601,6 @@ local function main()
         return packed
     end
 
-    -- Native .spr is 25x25; web-sim PNGs were exported at 28px (800x480).
     local function sprite_native_w(name)
         if USE_PNG then
             return 28
@@ -757,6 +684,9 @@ local function main()
     end
 
     local function tile_xy(tx, ty)
+        if map_host then
+            return tx * tile_px, ty * tile_px
+        end
         return vis_x + tx * tile_px, vis_y + ty * tile_px
     end
 
@@ -770,6 +700,7 @@ local function main()
         end
         return TILE_PALETTE[((sx + sy * 3) % #TILE_PALETTE) + 1]
     end
+
 
     local ctrl_box = {
         x = 0,
@@ -792,51 +723,44 @@ local function main()
         box = ctrl_box,
         web_sim = WEB_SIM,
         on_left = function(v)
-            print("jp: in left " .. (v and "1" or "0"))
-            if session.mode == "playing" then
+                        if session.mode == "playing" then
                 logic.set_input(game, v, game.input_right, game.input_jump)
             end
         end,
         on_right = function(v)
-            print("jp: in right " .. (v and "1" or "0"))
-            if session.mode == "playing" then
+                        if session.mode == "playing" then
                 logic.set_input(game, game.input_left, v, game.input_jump)
             end
         end,
         on_jump = function(v)
-            print("jp: in jump " .. (v and "1" or "0"))
-            if session.mode == "playing" then
+                        if session.mode == "playing" then
                 logic.set_input(game, game.input_left, game.input_right, v)
             end
         end,
         on_pause = function()
-            print("jp: in pause")
             if session.mode == "playing" then
                 session.mode = "paused"
                 input.set_enabled(false)
                 logic.pause(game)
-                label_stage:set_text(string.format("Stage %d II", stage_num(game.screen_index)))
+                lv_retry(function() label_stage:set_text(string.format("Stage %d II", stage_num(game.screen_index))) end)
             elseif session.mode == "paused" then
                 session.mode = "playing"
                 input.set_enabled(true)
                 logic.resume(game)
-                label_stage:set_text(string.format("Stage %d", stage_num(game.screen_index)))
+                lv_retry(function() label_stage:set_text(string.format("Stage %d", stage_num(game.screen_index))) end)
             end
         end,
         on_restart = function()
-            print("jp: in restart")
             session.mode = "playing"
             input.set_enabled(true)
             logic.restart(game)
             session.rendered_section = -1
         end,
         on_exit = function()
-            print("jp: in exit")
             session.running = false
         end,
     })
 
-    -- ------------------------------------------------------------ rendering
     local bg_rows = {}
     local last_player = { dx = 0, dy = 0, w = 0, h = 0, valid = false }
     local last_draw = { dx = nil, dy = nil, idx = nil, facing = nil, overlap = nil }
@@ -855,19 +779,39 @@ local function main()
         return #packed
     end
 
-    local function rebuild_background_single()
-        bg_rows = new_sky_rows()
+    local function pack_section(idx)
+        local packed = map_pack[idx]
+        if packed then
+            return packed
+        end
+        local old = game.screen_index
+        game.screen_index = idx
+        local rows = new_sky_rows()
         for y = 0, logic.MAP_H - 1 do
             for x = 0, logic.MAP_W - 1 do
                 if logic.tile_full(game, x, y) then
                     local sx, sy = logic.get_tile_sprite(game, x, y)
                     if sx then
                         local scaled = get_scaled(tile_sprite_name(sx, sy))
-                        blit_scaled(bg_rows, scaled, x * tile_px, y * tile_px,
-                                    field_w, field_h)
+                        if scaled then
+                            blit_scaled(rows, scaled, x * tile_px, y * tile_px,
+                                        field_w, field_h)
+                        end
                     end
                 end
             end
+        end
+        game.screen_index = old
+        packed = table.concat(rows)
+        map_pack[idx] = packed
+        print("jp: packed section " .. tostring(idx) .. " " .. tostring(#packed))
+        return packed
+    end
+
+    local function rebuild_background_single()
+        local packed = pack_section(game.screen_index)
+        if canvas and packed then
+            pcall(function() canvas:set_rgb565_data(packed, "le") end)
         end
     end
 
@@ -918,9 +862,7 @@ local function main()
             bucket[#bucket] = nil
             return obj
         end
-        -- Tiles live on `scr` at absolute vis_x/vis_y. field_bg is sky only;
-        -- WASM often ignores container set_size and would clip children.
-        local tile_host = scr
+        local tile_host = map_host or scr
         if USE_PNG and spr_name then
             local native = sprite_native_w(spr_name)
             if native == w then
@@ -930,8 +872,6 @@ local function main()
                     return img
                 end
             else
-                -- PNG native size != vis_tile: prefer a vis_tile canvas / set_px
-                -- so set_size being ignored cannot leave gaps.
                 local cv
                 if WEB_SIM then
                     cv = try_make_sim_canvas(tile_host, 0, 0, w, h)
@@ -948,8 +888,6 @@ local function main()
                 end
             end
         end
-        -- Device path (and sim fallback): per-tile / row-run RGB565 canvas.
-        -- Never a full-playfield buffer. On WEB_SIM try 32-bit first.
         local obj
         if WEB_SIM then
             obj = try_make_sim_canvas(tile_host, 0, 0, w, h)
@@ -998,7 +936,28 @@ local function main()
         return n
     end
 
+    local packed_run_cache = {}
+    local cell_paint = {}
+
+    local function run_content_key(y, x0, run_w)
+        local parts = { tostring(tile_px), tostring(run_w) }
+        for i = 0, run_w - 1 do
+            local sx, sy = logic.get_tile_sprite(game, x0 + i, y)
+            if sx then
+                parts[#parts + 1] = string.format("%d_%d", sx, sy)
+            else
+                parts[#parts + 1] = "-"
+            end
+        end
+        return table.concat(parts, ":")
+    end
+
     local function packed_run(y, x0, run_w)
+        local key = run_content_key(y, x0, run_w)
+        local cached = packed_run_cache[key]
+        if cached then
+            return cached, key
+        end
         local run_px = run_w * tile_px
         local sky_run_row = string.rep(sky_px, run_px)
         local rows = {}
@@ -1010,13 +969,19 @@ local function main()
             local sx, sy = logic.get_tile_sprite(game, tx, y)
             if sx then
                 local scaled = get_scaled(tile_sprite_name(sx, sy))
-                blit_scaled(rows, scaled, i * tile_px, 0, run_px, tile_px)
+                if scaled then
+                    blit_scaled(rows, scaled, i * tile_px, 0, run_px, tile_px)
+                end
             end
         end
-        return table.concat(rows)
+        local packed = table.concat(rows)
+        packed_run_cache[key] = packed
+        return packed, key
     end
 
+
     local function rebuild_background_grid()
+        map_host_hide()
         for key, rec in pairs(cell_at) do
             hide_cell(rec.obj, rec.w, rec.h, rec.key)
             cell_at[key] = nil
@@ -1049,12 +1014,17 @@ local function main()
                         end
                     end
                 end
-                if (not WEB_SIM) and (y + 1) % 3 == 0 then
-                    lvgl.process_events(0)
-                end
             end
             print(string.format("jp: png tiles placed=%d failed=%d pool=%d",
                                 made, failed, made + free_pool_count()))
+            map_host_show()
+            lv_after_flush()
+            if player_cv then
+                pcall(function() player_cv:move_foreground() end)
+            end
+            if input.raise then
+                input.raise()
+            end
             return
         end
         for y = 0, logic.MAP_H - 1 do
@@ -1078,9 +1048,16 @@ local function main()
                         local px, py = tile_xy(x0, y)
                         obj_set_pos(obj, px, py)
                         pcall(function() obj:clear_flag("CLICKABLE") end)
-                        local painted = pcall(function()
-                            obj:set_rgb565_data(packed_run(y, x0, run_w), "le")
-                        end)
+                        local packed, paint_key = packed_run(y, x0, run_w)
+                        local painted = true
+                        if cell_paint[obj] ~= paint_key then
+                            painted = pcall(function()
+                                obj:set_rgb565_data(packed, "le")
+                            end)
+                            if painted then
+                                cell_paint[obj] = paint_key
+                            end
+                        end
                         if not painted then
                             pcall(function()
                                 obj:set_style({
@@ -1102,12 +1079,17 @@ local function main()
                     x = x + 1
                 end
             end
-            if (not WEB_SIM) and (y + 1) % 3 == 0 then
-                lvgl.process_events(0)
-            end
         end
         print(string.format("jp: grid cells placed=%d failed=%d runs=%d pool=%d",
                             made, failed, runs, made + free_pool_count()))
+        map_host_show()
+        lv_after_flush()
+        if player_cv then
+            pcall(function() player_cv:move_foreground() end)
+        end
+        if input.raise then
+            input.raise()
+        end
     end
 
     local function ensure_player_canvas()
@@ -1119,7 +1101,7 @@ local function main()
             y = vis_y,
             w = pw,
             h = pw,
-            bg_color = COLORS.sky,
+            bg_opa = 0,
             radius = 0,
             pad = 0,
             border_width = 0,
@@ -1137,8 +1119,6 @@ local function main()
         end)
         player_can_move = obj_set_pos(player_cv, vis_x, vis_y)
         if USE_PNG then
-            -- Frames sit on `scr` so a container that ignores set_size cannot
-            -- clip them. The mover is still player_cv (transparent, on scr).
             pcall(function()
                 player_cv:set_style({
                     border_width = 0,
@@ -1181,7 +1161,7 @@ local function main()
             player_cv:set_style({
                 border_width = 0,
                 pad = 0,
-                bg_color = COLORS.sky,
+                bg_opa = 0,
             })
         end)
         player_spr = try_make_canvas(player_cv, 0, 0, tile_px, tile_px)
@@ -1205,31 +1185,8 @@ local function main()
     end
 
     local function fill_player_overlay(psp, dx, dy)
-        local rows = {}
-        for y = 1, tile_px do
-            rows[y] = sky_tile_row
-        end
-        local x0 = math.floor(dx / tile_px)
-        local y0 = math.floor(dy / tile_px)
-        local x1 = math.floor((dx + tile_px - 1) / tile_px)
-        local y1 = math.floor((dy + tile_px - 1) / tile_px)
-        for ty = y0, y1 do
-            for tx = x0, x1 do
-                if logic.tile_full(game, tx, ty) then
-                    local sx, sy = logic.get_tile_sprite(game, tx, ty)
-                    if sx then
-                        local scaled = get_scaled(tile_sprite_name(sx, sy))
-                        blit_scaled(rows, scaled,
-                                    tx * tile_px - dx, ty * tile_px - dy,
-                                    tile_px, tile_px)
-                    end
-                end
-            end
-        end
-        blit_scaled(rows, psp, 0, 0, tile_px, tile_px)
-        return table.concat(rows)
+        return packed_tile(string.format("player_r0"))
     end
-
     local function current_player_scaled()
         local idx = logic.get_player_sprite(game)
         if idx > 6 then idx = 0 end
@@ -1251,246 +1208,44 @@ local function main()
     local sim_first_present = true
 
     local function load_png_frame(name)
-        if not image_mod then
-            return nil
-        end
-        if png_frames[name] ~= nil then
-            if png_frames[name] == false then
-                return nil
-            end
-            return png_frames[name]
-        end
-        local path = sprite_png_file(name)
-        local ok, frame = pcall(image_mod.load_file, path)
-        if ok and frame then
-            png_frames[name] = frame
-            return frame
-        end
-        png_frames[name] = false
         return nil
     end
-
     local function sim_blit_sprite(name, x, y, w, h)
-        x = math.floor(x)
-        y = math.floor(y)
-        w = math.floor(w or tile_px)
-        h = math.floor(h or tile_px)
-        if w < 1 then w = 1 end
-        if h < 1 then h = 1 end
-        -- Prefer PNG image.frame (WEB_SIM only). Device never decodes PNG.
-        if USE_PNG and image_mod then
-            local frame = load_png_frame(name)
-            if frame then
-                local ok = pcall(disp.draw_image, x, y, frame, {
-                    mode = "stretch", width = w, height = h,
-                })
-                if ok then
-                    sim_blit_kind = sim_blit_kind or "draw_image-png"
-                    return true
-                end
-                ok = pcall(disp.draw_image, x, y, frame, {
-                    mode = "fit", width = w, height = h,
-                })
-                if ok then
-                    sim_blit_kind = sim_blit_kind or "draw_image-png-fit"
-                    return true
-                end
-            end
-        end
-        -- Decoded .spr RGB565 (same pixels the device tiles use).
+        if not disp_ready then return false end
         local packed = packed_tile(name)
-        if packed then
-            if type(disp.blit) == "function" then
-                local ok = pcall(disp.blit, x, y, packed, {
-                    width = w, height = h, format = "rgb565le",
-                })
-                if ok then
-                    sim_blit_kind = sim_blit_kind or "blit-rgb565"
-                    return true
-                end
-            end
-            if type(disp.draw_pixels) == "function" then
-                local ok = pcall(disp.draw_pixels, x, y, packed, {
-                    format = "rgb565le", width = w, height = h, mode = "raw",
-                })
-                if ok then
-                    sim_blit_kind = sim_blit_kind or "draw_pixels-rgb565le"
-                    return true
-                end
-                ok = pcall(disp.draw_pixels, x, y, packed, {
-                    format = "rgb565", width = w, height = h,
-                })
-                if ok then
-                    sim_blit_kind = sim_blit_kind or "draw_pixels-rgb565"
-                    return true
-                end
-            end
-        end
-        return false
+        if not packed or type(disp.draw_pixels) ~= "function" then return false end
+        return pcall(disp.draw_pixels, x, y, packed, { width = w, height = h, color_format = "rgb565le" })
     end
-
     local function sim_draw_chrome()
+        if not disp_ready then return end
         pcall(disp.fill_rect, 0, 0, width, HEADER_H, COLORS.panel)
-        local st = string.format("Stage %d", stage_num(game.screen_index))
-        if session.mode == "paused" then
-            st = st .. " II"
-        end
-        local ly = math.floor((HEADER_H - 22) / 2)
-        if ly < 8 then ly = 8 end
-        pcall(disp.draw_text_aligned, math.floor((width - 90) / 2), ly, 90, 22, st, {
-            color = COLORS.text, font_size = 16, align = "center", valign = "middle",
-        })
-        local btn_h = math.min(42, math.max(28, HEADER_H - 10))
-        local by = math.floor((HEADER_H - btn_h) / 2)
-        if by < 2 then by = 2 end
-        local pad = math.max(6, math.min(12, math.floor(width * 0.02)))
-        local exit_w = math.max(56, math.min(72, math.floor(width * 0.15)))
-        local pause_w = math.max(60, math.min(80, math.floor(width * 0.16)))
-        local restart_w = math.max(64, math.min(88, math.floor(width * 0.18)))
-        local specs = {
-            { x = pad, w = exit_w, text = "Exit", bg = "#FEFDF9" },
-            { x = pad + exit_w + 8, w = pause_w, text = "Pause", bg = "#FEFDF9" },
-            { x = width - pad - restart_w, w = restart_w, text = "Restart", bg = "#DFE7FC" },
-        }
-        for _, sp in ipairs(specs) do
-            pcall(disp.fill_round_rect, sp.x, by, sp.w, btn_h, 8, sp.bg)
-            pcall(disp.draw_text_aligned, sp.x, by, sp.w, btn_h, sp.text, {
-                color = "#111111", font_size = 14, align = "center", valign = "middle", bg = sp.bg,
-            })
-        end
-        local box_y = height - CONTROL_H
-        local gap = 2
-        local n = 3
-        local zone_w = math.floor((width - gap * (n - 1)) / n)
-        local zones = {
-            { text = "Left", bg = "#C7F0BD" },
-            { text = "Jump", bg = "#F8DFA5" },
-            { text = "Right", bg = "#C7F0BD" },
-        }
-        local charging = game.input_left or game.input_right or game.input_jump
-        local aim = 0
-        local ch = 0
-        if charging then
-            aim = game.jump_aim_x or 0
-            ch = logic.jump_charge(game)
-        end
-        local active = 2
-        if aim < 0 then active = 1
-        elseif aim > 0 then active = 3 end
-        for i, z in ipairs(zones) do
-            local zx = (i - 1) * (zone_w + gap)
-            local zw = zone_w
-            if i == n then zw = width - zx end
-            local bar_w = math.max(8, zw - 8)
-            pcall(disp.fill_rect, zx, box_y, zw, CONTROL_H, "#000000")
-            pcall(disp.fill_rect, zx + 4, box_y + 4, bar_w, 8, "#352B69")
-            if i == active and ch > 0 then
-                local fw = math.max(1, math.floor(ch * bar_w + 0.5))
-                pcall(disp.fill_rect, zx + 4, box_y + 4, fw, 8, "#F7C35F")
-            end
-            local btn_y = box_y + 4 + 8 + 4
-            local btn_h2 = CONTROL_H - (4 + 8 + 4) - 4
-            if btn_h2 < 28 then btn_h2 = math.max(28, CONTROL_H - 16) end
-            pcall(disp.fill_round_rect, zx + 4, btn_y, bar_w, btn_h2, 8, z.bg)
-            pcall(disp.draw_text_aligned, zx + 4, btn_y, bar_w, btn_h2, z.text, {
-                color = "#111111", font_size = 16, align = "center", valign = "middle", bg = z.bg,
-            })
-        end
+        pcall(disp.fill_rect, 0, height - CONTROL_H, width, CONTROL_H, "#000000")
     end
-
     local function sim_present_frame()
-        if not disp_ready then
-            return
-        end
+        if not disp_ready then return end
         local tw = tile_px
-        pcall(disp.begin_frame, { clear = true, color = COLORS.sky, preserve = false })
-        -- Always walk all 12 map rows so the sim cannot stall on row 0.
-        local tiles = 0
-        local rows_with = 0
+        pcall(disp.begin_frame, { clear = true, color = COLORS.sky })
         for y = 0, logic.MAP_H - 1 do
-            local row_hit = false
             for x = 0, logic.MAP_W - 1 do
                 if logic.tile_full(game, x, y) then
-                    row_hit = true
                     local sx, sy = logic.get_tile_sprite(game, x, y)
-                    local px = vis_x + x * tw
-                    local py = vis_y + y * tw
-                    local ok = false
                     if sx then
-                        ok = sim_blit_sprite(tile_sprite_name(sx, sy), px, py, tw, tw)
+                        sim_blit_sprite(tile_sprite_name(sx, sy), vis_x + x * tw, vis_y + y * tw, tw, tw)
                     end
-                    if not ok then
-                        pcall(disp.fill_rect, px, py, tw, tw, tile_fill_color(x, y))
-                        sim_blit_kind = sim_blit_kind or "fill_rect"
-                    end
-                    tiles = tiles + 1
                 end
-            end
-            if row_hit then
-                rows_with = rows_with + 1
             end
         end
         local idx = logic.get_player_sprite(game)
         if idx > 6 then idx = 0 end
-        local dx, dy = player_draw_origin()
         local facing = game.is_facing_right and "r" or "l"
         local pname = string.format("player_%s%d", facing, idx)
-        local px = vis_x + dx
-        local py = vis_y + dy
-        local tx0 = math.floor(dx / tw)
-        local ty0 = math.floor(dy / tw)
-        local tx1 = math.floor((dx + tw - 1) / tw)
-        local ty1 = math.floor((dy + tw - 1) / tw)
-        local overlaps = false
-        for ty = ty0, ty1 do
-            for tx = tx0, tx1 do
-                if logic.tile_full(game, tx, ty) then
-                    overlaps = true
-                end
-            end
-        end
-        local drew = false
-        if overlaps then
-            local psp = current_player_scaled()
-            if psp then
-                local packed = fill_player_overlay(psp, dx, dy)
-                if packed and type(disp.draw_pixels) == "function" then
-                    drew = pcall(disp.draw_pixels, math.floor(px), math.floor(py), packed, {
-                        format = "rgb565le", width = tw, height = tw, mode = "raw",
-                    })
-                    if not drew then
-                        drew = pcall(disp.draw_pixels, math.floor(px), math.floor(py), packed, {
-                            format = "rgb565", width = tw, height = tw,
-                        })
-                    end
-                    if drew then
-                        sim_blit_kind = sim_blit_kind or "draw_pixels-player-overlay"
-                    end
-                end
-            end
-        end
-        if not drew then
-            drew = sim_blit_sprite(pname, px, py, tw, tw)
-        end
-        if not drew then
-            pcall(disp.fill_rect, math.floor(px), math.floor(py), tw, tw, "#E23D28")
-        end
-        -- Mixing display.present with LVGL chrome often wipes widgets; draw
-        -- Exit/Pause/Restart + Left/Jump/Right with display too. Input still
-        -- comes from lcd_touch.poll.
+        local dx = math.floor(logic.player_screen_x(game) * tw)
+        local dy = math.floor(logic.player_screen_y(game) * tw)
+        sim_blit_sprite(pname, vis_x + dx, vis_y + dy, tw, tw)
         sim_draw_chrome()
         pcall(disp.present)
         pcall(disp.end_frame)
-        if sim_first_present then
-            sim_first_present = false
-            print(string.format(
-                "jp: sim present rows=%d/%d tiles=%d blit=%s player@%d,%d vis_tile=%d screen=%d",
-                rows_with, logic.MAP_H, tiles, tostring(sim_blit_kind),
-                math.floor(px), math.floor(py), tw, game.screen_index))
-        end
     end
-
-
     local function render_section(force)
         local section = game.screen_index
         if (not force) and section == session.rendered_section then
@@ -1505,32 +1260,23 @@ local function main()
         last_draw.facing = nil
         print(string.format("jp: section %d", section))
         if disp_ready then
-            -- WEB_SIM: 16x12 map is presented each frame; no tile widgets.
         elseif render_mode == "single" then
             rebuild_background_single()
+            if not player_cv then
+                ensure_player_canvas()
+            end
         else
             rebuild_background_grid()
-            -- Never delete player_cv (realloc after tiles can OOM). Restack it.
             if not player_cv then
                 ensure_player_canvas()
             end
             if player_cv then
                 pcall(function() player_cv:move_foreground() end)
-                pcall(function() player_cv:move_to_index(-1) end)
-            end
-            if USE_PNG then
-                for _, img in pairs(player_frames) do
-                    pcall(function() img:move_foreground() end)
-                    pcall(function() img:clear_flag("CLICKABLE") end)
-                end
             end
         end
-        -- Controls must sit above tiles/player so 480x480 bottom-row
-        -- tiles cannot cover Left/Jump/Right hit zones.
-        if input.raise then
-            input.raise()
-        end
-        label_stage:set_text(string.format("Stage %d", stage_num(section)))
+        pcall(function()
+            label_stage:set_text(string.format("Stage %d", stage_num(section)))
+        end)
         return true
     end
 
@@ -1544,13 +1290,13 @@ local function main()
         if idx > 6 then idx = 0 end
         local dx, dy = player_draw_origin()
         local psp = nil
-        if (not USE_PNG) and (render_mode == "single" or player_spr) then
+        if (not USE_PNG) and render_mode == "single" and not player_cv then
             psp = current_player_scaled()
             if not psp then
                 return
             end
         end
-        if render_mode == "single" then
+        if render_mode == "single" and not player_cv then
             local rows = compose_frame(psp, dx, dy)
             local nbytes = push_rows(rows)
             if first_blit then
@@ -1607,34 +1353,12 @@ local function main()
         end
         if player_spr then
             local facing = game.is_facing_right and "r" or "l"
-            local tx0 = math.floor(dx / tile_px)
-            local ty0 = math.floor(dy / tile_px)
-            local tx1 = math.floor((dx + tile_px - 1) / tile_px)
-            local ty1 = math.floor((dy + tile_px - 1) / tile_px)
-            local overlaps = false
-            local overlap_key = ""
-            for ty = ty0, ty1 do
-                for tx = tx0, tx1 do
-                    if logic.tile_full(game, tx, ty) then
-                        overlaps = true
-                        overlap_key = overlap_key .. string.format("%d,%d;", tx, ty)
-                    end
-                end
-            end
-            local same_sprite = last_draw.idx == idx
-                and last_draw.facing == facing
-                and last_draw.overlap == overlap_key
+            local same_sprite = last_draw.idx == idx and last_draw.facing == facing
             if not same_sprite then
-                local packed
-                if overlaps then
-                    packed = fill_player_overlay(psp, dx, dy)
-                else
-                    packed = packed_tile(string.format("player_%s%d", facing, idx))
-                end
+                local packed = packed_tile(string.format("player_%s%d", facing, idx))
                 pcall(function() player_spr:set_rgb565_data(packed, "le") end)
                 last_draw.idx = idx
                 last_draw.facing = facing
-                last_draw.overlap = overlap_key
             end
         end
         if last_draw.dx ~= dx or last_draw.dy ~= dy then
@@ -1663,7 +1387,6 @@ local function main()
 
     logic.start(game)
     session.mode = "playing"
-
     scr:load()
     render_section(true)
     if not disp_ready then
@@ -1674,9 +1397,6 @@ local function main()
         input.raise()
     end
 
-    -- Web sim: LVGL pressed/released often never fire (lv_tick_inc is
-    -- not called). Poll lcd_touch like snake_game and map x-thirds of
-    -- the control band. Device path stays process_events + flush.
     local sim_touch = nil
     local sim_poll_ok = false
     if WEB_SIM then
@@ -1737,16 +1457,7 @@ local function main()
         game.screen_index, game.position.x, game.position.y, render_mode))
 
     local last_ms = now_ms()
-    local last_tick_ms = last_ms
     while session.running do
-        lvgl.process_events(0)
-        if WEB_SIM then
-            poll_sim_pointer()
-        end
-        if input.flush then
-            input.flush()
-        end
-
         local now = now_ms()
         local dt = now - last_ms
         if dt < 0 then
@@ -1776,21 +1487,19 @@ local function main()
             sim_present_frame()
         end
 
-        if now - last_tick_ms >= 2000 then
-            last_tick_ms = now
-            print(string.format(
-                "jp: tick pos=%.2f,%.2f screen=%d L,R,J=%d,%d,%d cv=%s",
-                game.position.x, game.position.y, game.screen_index,
-                game.input_left and 1 or 0,
-                game.input_right and 1 or 0,
-                game.input_jump and 1 or 0,
-                tostring(player_cv ~= nil)))
+        pcall(lvgl.process_events, 0)
+        if WEB_SIM then
+            poll_sim_pointer()
         end
-
-        local used = now_ms() - now
-        if used < 0 then used = 0 end
-        if used < 16 then
-            sleep_ms(16 - used)
+        if input.flush then
+            input.flush()
+        end
+        if WEB_SIM then
+            local used = now_ms() - now
+            if used < 0 then used = 0 end
+            if used < 16 then
+                sleep_ms(16 - used)
+            end
         end
     end
 end

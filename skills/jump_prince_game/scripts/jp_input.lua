@@ -272,7 +272,6 @@ end
 function M.raise()
     for _, obj in ipairs(raise_list) do
         pcall(function() obj:move_foreground() end)
-        pcall(function() obj:move_to_index(-1) end)
     end
 end
 
