@@ -6,18 +6,11 @@
     "cap_groups": [
       "cap_lua"
     ],
-    "manage_mode": "readonly",
     "category": [
       "utility"
     ],
-    "peripherals": [],
-    "tags": [
-      "camera",
-      "vision",
-      "motion-detect",
-      "gimbal",
-      "lcd"
-    ]
+    "peripherals": ["camera", "display"],
+    "tags": ["vision", "motion-detect", "gimbal", "lcd"]
   }
 }
 ---
@@ -34,15 +27,11 @@ stream and draws it centered on the `284x240` LCD without additional flipping.
 
 ## Default Hardware
 
-- Camera device: from `board_manager.get_camera_paths()`
-- Camera stream: board default mode from `camera.open(dev_path)`
-- LCD panel: from `board_manager.get_display_lcd_params("display_lcd")`
-- Runtime shape: a single async Lua job owns camera, LCD preview, and motion detection.
-- Display updates: full-frame double-buffered rendering when two framebuffers can be allocated; each preview frame uses `clear = false`, `preserve = false`, `display.present_full()`, and `display.end_frame({ wait = false })` so the next frame can be prepared while panel DMA refresh is in flight. If only one framebuffer can be allocated, the display module falls back to single buffering.
-
-If the board manager camera path cannot be opened, the script tries
-`/dev/video0` through `/dev/video7` before failing and reports every attempted
-path.
+- Discover the camera with `camera.list_devices()` and open its first device.
+- Open the built-in display with `display.open()`.
+- A single async Lua job owns camera, preview, and motion detection.
+- Each preview uses `screen:begin()`, `screen:image()`, and `screen:present({ full = true })`.
+- If camera discovery or opening fails, report the actual error.
 
 ## Start Script Args Schema
 
@@ -132,7 +121,7 @@ Start motion tracking:
   "timeout_ms": 0,
   "name": "gimbal_motion_detect",
   "exclusive": "gimbal_motion_detect",
-  "replace": true
+  "replace": false
 }
 ```
 

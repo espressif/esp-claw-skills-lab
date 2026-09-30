@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "id": "number_puzzle",
+  "entry": "scripts/number_puzzle.lua",
+  "display_name": "Number Puzzle",
+  "args": {
+    "run_time_ms": 0
+  },
+  "order": 20,
+  "visible": true,
+  "catalog": {
+    "description": "Play a touch-controlled 15-puzzle number sliding game on the LCD with lightweight rendering, swipe controls, and pixel-style sound effects.",
+    "category": [
+      "game",
+      "ui"
+    ],
+    "tags": [
+      "15-puzzle",
+      "number puzzle",
+      "sliding puzzle",
+      "touch",
+      "animation",
+      "sound"
+    ],
+    "peripherals": [
+      "display"
+    ],
+    "simulator": true,
+    "author": "ESP-Claw contributor"
+  },
+  "icon": "assets/icon.jpg"
+}

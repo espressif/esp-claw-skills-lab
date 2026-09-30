@@ -5,7 +5,6 @@
   "author": "ESP-Claw contributor",
   "metadata": {
     "cap_groups": ["cap_lua", "cap_http_request"],
-    "manage_mode": "web",
     "category": ["media", "utility"],
     "peripherals": ["display"],
     "tags": ["cloudmusic", "netease", "windows-host", "vinyl"]
@@ -62,13 +61,13 @@ Confirm that both devices are on the same LAN and add the PC LAN IPv4 address to
 Run the controller asynchronously because it owns the display:
 
 ```json
-{"path":"{CUR_SKILL_DIR}/scripts/start_cloudmusic.lua","args":{"worker_path":"{CUR_SKILL_DIR}/scripts/cloudmusic_worker.lua"},"timeout_ms":0,"name":"cloudmusic","exclusive":"display","replace":true,"log_bytes":4096}
+{"path":"{CUR_SKILL_DIR}/scripts/start_cloudmusic.lua","args":{"worker_path":"{CUR_SKILL_DIR}/scripts/cloudmusic_worker.lua"},"timeout_ms":0,"name":"cloudmusic","exclusive":"display","replace":false,"log_bytes":4096}
 ```
 
 To configure a new IP while starting, pass it directly:
 
 ```json
-{"path":"{CUR_SKILL_DIR}/scripts/start_cloudmusic.lua","args":{"host_ip":"192.168.1.100","worker_path":"{CUR_SKILL_DIR}/scripts/cloudmusic_worker.lua"},"timeout_ms":0,"name":"cloudmusic","exclusive":"display","replace":true,"log_bytes":4096}
+{"path":"{CUR_SKILL_DIR}/scripts/start_cloudmusic.lua","args":{"host_ip":"192.168.1.100","worker_path":"{CUR_SKILL_DIR}/scripts/cloudmusic_worker.lua"},"timeout_ms":0,"name":"cloudmusic","exclusive":"display","replace":false,"log_bytes":4096}
 ```
 
 If previous and next are reversed, pass `"side_touch_swap": true`.

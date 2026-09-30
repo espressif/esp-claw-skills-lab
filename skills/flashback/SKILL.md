@@ -5,7 +5,6 @@
   "author": "ESP-Claw contributor",
   "metadata": {
     "cap_groups": ["cap_lua", "cap_http_request"],
-    "manage_mode": "web",
     "category": ["media", "utility"],
     "peripherals": ["display"],
     "tags": ["flashback", "windows-host", "video", "clock"]
@@ -38,13 +37,13 @@ Run this once after asking the user for the Windows PC LAN IP:
 Run the controller asynchronously because it owns the display and polls touch input:
 
 ```json
-{"path":"{CUR_SKILL_DIR}/scripts/start_flashback.lua","args":{"glyphs_path":"{CUR_SKILL_DIR}/assets/clock_glyphs.lua"},"timeout_ms":0,"name":"flashback","exclusive":"display","replace":true,"log_bytes":4096}
+{"path":"{CUR_SKILL_DIR}/scripts/start_flashback.lua","args":{"glyphs_path":"{CUR_SKILL_DIR}/assets/clock_glyphs.lua"},"timeout_ms":0,"name":"flashback","exclusive":"display","replace":false,"log_bytes":4096}
 ```
 
 If the user gives a new IP while starting, pass it directly and the script will save it:
 
 ```json
-{"path":"{CUR_SKILL_DIR}/scripts/start_flashback.lua","args":{"host_ip":"192.168.1.100","glyphs_path":"{CUR_SKILL_DIR}/assets/clock_glyphs.lua"},"timeout_ms":0,"name":"flashback","exclusive":"display","replace":true,"log_bytes":4096}
+{"path":"{CUR_SKILL_DIR}/scripts/start_flashback.lua","args":{"host_ip":"192.168.1.100","glyphs_path":"{CUR_SKILL_DIR}/assets/clock_glyphs.lua"},"timeout_ms":0,"name":"flashback","exclusive":"display","replace":false,"log_bytes":4096}
 ```
 
 ## Behavior

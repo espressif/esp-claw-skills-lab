@@ -1,9 +1,32 @@
-local board_manager = require("board_manager")
 local capability = require("capability")
 local delay = require("delay")
 local display = require("display")
+local canvas
+-- Follow one contact by ID and preserve its last position on release.
+local touch_id, touch_x, touch_y = nil, 0, 0
+local function poll_touch_snapshot()
+    local point
+    local points = canvas:touch().points
+    for _, candidate in ipairs(points) do
+        if touch_id == nil or candidate.id == touch_id then point = candidate; break end
+    end
+    local was_pressed = touch_id ~= nil
+    if point then touch_id, touch_x, touch_y = point.id, point.x, point.y else touch_id = nil end
+    return { pressed = point ~= nil, just_pressed = point ~= nil and not was_pressed,
+        just_released = point == nil and was_pressed, x = touch_x, y = touch_y }
+end
+-- Keep alignment local; the display API draws text at an explicit origin.
+local function aligned_text(x, y, w, h, text, opts)
+    opts = opts or {}
+    opts.font_size = math.max(8, math.min(64, math.floor(opts.font_size or 24)))
+    if opts.bg then canvas:fill_rect(math.floor(x), math.floor(y), math.floor(w), math.floor(h), opts.bg) end
+    local tw, th = canvas:measure_text(text, opts)
+    if opts.align == "center" then x = x + (w - tw) // 2 elseif opts.align == "right" then x = x + w - tw end
+    if opts.valign == "middle" then y = y + (h - th) // 2 elseif opts.valign == "bottom" then y = y + h - th end
+    canvas:text(math.floor(x), math.floor(y), text, opts)
+end
+
 local json = require("json")
-local lcd_touch = require("lcd_touch")
 local storage = require("storage")
 local system = require("system")
 
@@ -212,26 +235,23 @@ local function send_play()
 end
 
 local function begin_frame(clear)
-    display.begin_frame({
-        clear = clear ~= false,
-        color = "black",
-    })
+    canvas:begin(clear ~= false and { clear = "#000000" } or {})
 end
 
 local function end_frame(full)
     if full then
-        display.present_full()
+        canvas:present({ full = true })
     else
-        display.present()
+        canvas:present()
     end
-    display.end_frame()
+
 end
 
 local function fit_font_size(text, max_w, max_h, start_size, min_size)
-    local size = start_size
+    local size = math.min(64, start_size)
     while size >= min_size do
         local ok, tw, th = pcall(function()
-            local w, h = display.measure_text(text, { font_size = size })
+            local w, h = canvas:measure_text(text, { font_size = size })
             return w, h
         end)
         if ok and tw <= max_w and th <= max_h then
@@ -243,8 +263,8 @@ local function fit_font_size(text, max_w, max_h, start_size, min_size)
 end
 
 local function draw_center_text(text, y, height, font_size, color)
-    display.draw_text_aligned(0, y, panel_w, height, text, {
-        color = color or "white",
+    aligned_text(0, y, panel_w, height, text, {
+        color = color or "#ffffff",
         font_size = font_size,
         align = "center",
         valign = "middle",
@@ -259,7 +279,7 @@ local function draw_status(title, headline, detail, button)
     local button_size = fit_font_size(button, panel_w - 48, 24, 16, 10)
 
     draw_center_text(title, 24, 28, title_size, { r = 140, g = 140, b = 140 })
-    draw_center_text(headline, 78, 48, headline_size, "white")
+    draw_center_text(headline, 78, 48, headline_size, "#ffffff")
     draw_center_text(detail, 118, 28, detail_size, { r = 160, g = 160, b = 160 })
 
     local dot_y = 160
@@ -268,7 +288,7 @@ local function draw_status(title, headline, detail, button)
         local on = (status_anim % 4) == i or host_ready
         local radius = on and 3 or 2
         local shade = on and 255 or 70
-        display.fill_round_rect(dot_start + i * 12 - radius, dot_y - radius,
+        canvas:fill_round_rect(dot_start + i * 12 - radius, dot_y - radius,
             radius * 2, radius * 2, radius, { r = shade, g = shade, b = shade })
     end
 
@@ -276,9 +296,9 @@ local function draw_status(title, headline, detail, button)
     local btn_h = 36
     local btn_x = (panel_w - btn_w) // 2
     local btn_y = panel_h - btn_h - 16
-    display.fill_round_rect(btn_x, btn_y, btn_w, btn_h, 12, "white")
-    display.fill_round_rect(btn_x + 2, btn_y + 2, btn_w - 4, btn_h - 4, 10, "black")
-    draw_center_text(button, btn_y, btn_h, button_size, "white")
+    canvas:fill_round_rect(btn_x, btn_y, btn_w, btn_h, 12, "#ffffff")
+    canvas:fill_round_rect(btn_x + 2, btn_y + 2, btn_w - 4, btn_h - 4, 10, "#000000")
+    draw_center_text(button, btn_y, btn_h, button_size, "#ffffff")
 
     status_anim = (status_anim + 1) % 4
     end_frame(true)
@@ -362,8 +382,8 @@ local function draw_clock_with_glyphs(text)
 
     local x = math.max(0, (panel_w - width) // 2)
     local y = math.max(0, (panel_h - height) // 2)
-    display.draw_pixels(x, y, pixels, {
-        format = "rgb565le",
+    canvas:blit(x, y, pixels, {
+        format = "rgb565",
         width = width,
         height = height,
     })
@@ -380,31 +400,16 @@ local function draw_clock(force)
     begin_frame(true)
     if not draw_clock_with_glyphs(text) then
         local font_size = fit_font_size(text, panel_w - 16, panel_h // 2, panel_h // 2, 24)
-        draw_center_text(text, 0, panel_h, font_size, "white")
+        draw_center_text(text, 0, panel_h, font_size, "#ffffff")
     end
     end_frame(true)
 end
 
 local function init_display()
-    board_manager.init_device("display_lcd")
-    board_manager.init_device("lcd_touch")
-
-    local panel, io, width, height, panel_if = board_manager.get_display_lcd_params("display_lcd")
-    if not panel then
-        error("display_lcd not available")
-    end
-
-    display.init(panel, io, width, height, panel_if)
+    canvas = display.open()
     display_started = true
-    panel_w = width
-    panel_h = height
-
-    touch_handle = board_manager.get_lcd_touch_handle("lcd_touch")
-    if touch_handle then
-        pcall(function()
-            lcd_touch.sync(touch_handle)
-        end)
-    end
+    panel_w, panel_h = canvas:info().width, canvas:info().height
+    touch_handle = canvas:info().touch_available
 end
 
 local function handle_touch()
@@ -412,7 +417,7 @@ local function handle_touch()
         return
     end
     local ok, touch = pcall(function()
-        return lcd_touch.poll(touch_handle)
+        return poll_touch_snapshot()
     end)
     if not ok or type(touch) ~= "table" or not touch.just_pressed then
         return
@@ -432,12 +437,7 @@ end
 
 local function cleanup()
     if display_started then
-        pcall(function()
-            if display.frame_active and display.frame_active() then
-                display.end_frame()
-            end
-        end)
-        pcall(display.deinit)
+        if canvas then canvas:close(); canvas = nil end
         display_started = false
     end
 end

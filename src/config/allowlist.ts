@@ -26,7 +26,6 @@ export const ALLOWED_PERIPHERALS = [
   'ws2812',
   'matrix_lidar',
   'stcc4',
-  'button',
 ] as const
 
 export type Peripheral = (typeof ALLOWED_PERIPHERALS)[number]
