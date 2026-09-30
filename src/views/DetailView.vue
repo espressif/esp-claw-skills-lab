@@ -3,12 +3,13 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ArrowLeft, Package, FileText, Puzzle, Copy, Check, ExternalLink, Play } from '@lucide/vue'
+import AppIcon from '@/components/AppIcon.vue'
 import MarkdownPreview from '@/components/MarkdownPreview.vue'
 import FileTree from '@/components/FileTree.vue'
 import RawPreviewModal from '@/components/RawPreviewModal.vue'
 import { useSkillsStore } from '@/stores/skills'
-import type { SkillData } from '@/types/skill'
-import { buildSkillSimulatorUrl, isSimulatorSkill } from '@/utils/simulator'
+import type { PackageKind, SkillData } from '@/types/skill'
+import { buildAppSimulatorUrl, canSimulateApp } from '@/utils/simulator'
 
 const route = useRoute()
 const router = useRouter()
@@ -22,6 +23,7 @@ const activeSection = ref('overview')
 const copiedInstallText = ref(false)
 
 const skillId = computed(() => route.params.id as string)
+const packageKind = computed(() => route.params.kind as PackageKind)
 const lang = computed(() => (route.params.lang as string) || 'zh-cn')
 
 const scriptCount = computed(() => skill.value?.extra_files.scripts.length ?? 0)
@@ -54,10 +56,10 @@ const buildGitSha = import.meta.env.VITE_BUILD_GIT_SHA || 'master'
 const peripherals = computed(() => skill.value?.metadata.peripherals ?? [])
 const tags = computed(() => skill.value?.metadata.tags ?? [])
 const categories = computed(() => skill.value?.metadata.category ?? [])
-const canSimulate = computed(() => (skill.value ? isSimulatorSkill(skill.value) : false))
+const canSimulate = computed(() => (skill.value ? canSimulateApp(skill.value) : false))
 const githubTreeUrl = computed(() =>
   skill.value
-    ? `https://github.com/espressif/esp-claw-skills-lab/tree/${buildGitSha}/skills/${skill.value.id}`
+    ? `https://github.com/espressif/esp-claw-skills-lab/tree/${buildGitSha}/${skill.value.packagePath}`
     : '',
 )
 const authorInfo = computed(() => {
@@ -79,19 +81,35 @@ const authorInfo = computed(() => {
   }
 })
 const installText = computed(() =>
-  skill.value ? t('install.command', { id: skill.value.id }) : '',
+  skill.value
+    ? t(skill.value.kind === 'app' ? 'install.appCommand' : 'install.command', {
+        id: skill.value.id,
+        url: `${window.location.origin}${skill.value.rawPath}/_metadata.json`,
+      })
+    : '',
 )
 
 async function loadSkill() {
+  const id = skillId.value
+  const kind = packageKind.value
+  markdownBody.value = ''
+  previewFile.value = null
   await store.load()
-  skill.value = store.getSkillById(skillId.value) ?? null
+  if (id !== skillId.value || kind !== packageKind.value) return
+  skill.value = store.getSkillById(id, kind) ?? null
+  // Preserve old links to the seven migrated packages without aliasing their raw files.
+  if (!skill.value && kind === 'skill' && store.getSkillById(id, 'app')) {
+    await router.replace(`/${lang.value}/app/${id}`)
+    return
+  }
 
   if (skill.value) {
     try {
-      const resp = await fetch(`/raw/${skillId.value}/SKILL.md`)
+      const resp = await fetch(`${skill.value.rawPath}/${skill.value.readme}`)
       if (resp.ok) {
         const raw = await resp.text()
-        const fmEnd = raw.indexOf('---', raw.indexOf('---') + 3)
+        if (id !== skillId.value || kind !== packageKind.value) return
+        const fmEnd = kind === 'skill' && raw.startsWith('---') ? raw.indexOf('---', 3) : -1
         markdownBody.value = fmEnd >= 0 ? raw.substring(fmEnd + 3).trim() : raw
       }
     } catch {
@@ -111,7 +129,7 @@ function goToCategory(category: string) {
 
 function openSimulator() {
   if (!skill.value) return
-  window.open(buildSkillSimulatorUrl(skill.value), '_blank', 'noopener,noreferrer')
+  window.open(buildAppSimulatorUrl(skill.value), '_blank', 'noopener,noreferrer')
 }
 
 async function copyInstallText() {
@@ -146,7 +164,7 @@ function scrollTo(id: string) {
 }
 
 onMounted(loadSkill)
-watch(skillId, loadSkill)
+watch([skillId, packageKind], loadSkill)
 </script>
 
 <template>
@@ -177,7 +195,7 @@ watch(skillId, loadSkill)
             :class="{ active: activeSection === 'skills-detail' }"
             @click="scrollTo('skills-detail')"
           >
-            {{ t('detail.skillsDetail') }}
+            {{ t(skill.kind === 'app' ? 'detail.appDetail' : 'detail.skillsDetail') }}
           </button>
           <button
             class="nav-item"
@@ -194,8 +212,15 @@ watch(skillId, loadSkill)
       <section id="overview" class="section">
         <div class="overview-info">
           <div class="title-row">
+            <AppIcon
+              :src="
+                skill.kind === 'app' && skill.icon ? `${skill.rawPath}/${skill.icon}` : undefined
+              "
+            />
             <h1 class="skill-title">{{ skill.title || skill.name }}</h1>
-            <span class="title-id">id: {{ skill.id }}</span>
+            <span class="title-id"
+              >{{ skill.kind === 'app' ? 'App' : 'Skill' }} · {{ skill.id }}</span
+            >
           </div>
           <div class="skill-meta">
             <span class="meta-item">
@@ -305,7 +330,9 @@ watch(skillId, loadSkill)
       </section>
 
       <section id="skills-detail" class="section">
-        <h2 class="section-title">{{ t('detail.skillsDetail') }}</h2>
+        <h2 class="section-title">
+          {{ t(skill.kind === 'app' ? 'detail.appDetail' : 'detail.skillsDetail') }}
+        </h2>
         <MarkdownPreview :content="markdownBody" />
       </section>
 
@@ -329,13 +356,13 @@ watch(skillId, loadSkill)
 
     <RawPreviewModal
       v-if="previewFile"
-      :skill-id="skill.id"
+      :raw-path="skill.rawPath"
       :file-path="previewFile"
       @close="previewFile = null"
     />
   </div>
   <div v-else class="loading-state">
-    <p>Loading...</p>
+    <p>{{ store.loaded ? t('package.notFound') : 'Loading...' }}</p>
   </div>
 </template>
 
@@ -476,7 +503,7 @@ watch(skillId, loadSkill)
 
 .title-row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 0.6rem;
   flex-wrap: wrap;
   margin-bottom: 0.5rem;

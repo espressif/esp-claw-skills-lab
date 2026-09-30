@@ -90,8 +90,8 @@ export class SkillSearchEngine {
     this.skills = skills
     this.miniSearch = new MiniSearch<SkillData>({
       fields: ['name', 'description', 'title'],
-      storeFields: ['id'],
-      idField: 'id',
+      storeFields: ['key'],
+      idField: 'key',
       searchOptions: {
         boost: { name: 2, title: 1.5 },
         fuzzy: 0.2,
@@ -108,7 +108,7 @@ export class SkillSearchEngine {
     const searchBase = parsedQuery.text
       ? this.miniSearch
           .search(parsedQuery.text)
-          .map((hit) => this.skills.find((s) => s.id === hit.id))
+          .map((hit) => this.skills.find((s) => s.key === hit.id))
           .filter((s): s is SkillData => s !== undefined)
       : this.skills
 

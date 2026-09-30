@@ -2,9 +2,12 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import type { Connect } from 'vite'
-import matter from 'gray-matter'
+import { parseSkillDocument } from './skill-package'
+import { readAppPackage } from './app-package'
 import type { Plugin, ViteDevServer } from 'vite'
 import { FEATURED_SKILLS } from '../src/config/allowlist'
+
+const INDEX_FILES = ['skills-data.json', 'apps-data.json', 'catalog-data.json', 'tags.json']
 
 interface SkillExtraFiles {
   references: string[]
@@ -13,6 +16,13 @@ interface SkillExtraFiles {
 }
 
 interface SkillEntry {
+  icon?: string
+  simulator?: boolean
+  kind: 'skill' | 'app'
+  key: string
+  packagePath: string
+  rawPath: string
+  readme: string
   id: string
   name: string
   description: string
@@ -30,32 +40,6 @@ interface SkillTagsIndex {
   category: string[]
   tag: string[]
   peripheral: string[]
-}
-
-interface JsonMatterOptions extends matter.GrayMatterOption<string, JsonMatterOptions> {}
-
-function parseSkillMd(filePath: string): {
-  frontmatter: Record<string, unknown>
-  title: string
-  body: string
-} {
-  const raw = fs.readFileSync(filePath, 'utf-8')
-  const matterOptions: JsonMatterOptions = {
-    engines: {
-      json: {
-        parse: (s: string) => JSON.parse(s),
-        stringify: (o: unknown) => JSON.stringify(o),
-      },
-    },
-    language: 'json',
-  }
-  const { data, content } = matter(raw, matterOptions)
-
-  const titleMatch = content.match(/^#\s+(.+)$/m)
-  const fallbackTitle = typeof data.name === 'string' ? data.name : ''
-  const title = titleMatch ? titleMatch[1].trim() : fallbackTitle
-
-  return { frontmatter: data, title, body: content }
 }
 
 function collectFiles(
@@ -206,12 +190,12 @@ function contentTypeFor(filePath: string): string {
 }
 
 /** Dev-only: mirror production static `/raw/*` (see writeBundle → dist/raw). */
-function rawSkillsMiddleware(skillsDir: string): Connect.NextHandleFunction {
+function rawSkillsMiddleware(skillsDir: string, prefix = '/raw/'): Connect.NextHandleFunction {
   const root = skillsRootResolved(skillsDir)
 
   return (req, res, next) => {
     const rawUrl = req.url
-    if (!rawUrl?.startsWith('/raw/')) {
+    if (!rawUrl?.startsWith(prefix)) {
       next()
       return
     }
@@ -225,7 +209,7 @@ function rawSkillsMiddleware(skillsDir: string): Connect.NextHandleFunction {
       return
     }
 
-    const rel = pathname.slice('/raw/'.length).replace(/^\/+/, '')
+    const rel = pathname.slice(prefix.length).replace(/^\/+/, '')
     if (!rel || rel.includes('\0')) {
       res.statusCode = 404
       res.end('Not Found')
@@ -262,85 +246,113 @@ function rawSkillsMiddleware(skillsDir: string): Connect.NextHandleFunction {
 
 export default function skillsPlugin(): Plugin {
   const skillsDir = path.resolve(process.cwd(), 'skills')
+  const appsDir = path.resolve(process.cwd(), 'apps')
   const generatedDir = path.resolve(process.cwd(), 'src/generated')
 
   return {
     name: 'vite-plugin-skills',
     enforce: 'pre',
     configureServer(server: ViteDevServer) {
+      server.middlewares.use((req, res, next) => {
+        const filename = req.url?.split('?')[0].replace(/^\/raw\//, '')
+        if (req.url?.startsWith('/raw/') && filename && INDEX_FILES.includes(filename)) {
+          return rawSkillsMiddleware(generatedDir)(req, res, next)
+        }
+        next()
+      })
+      server.middlewares.use(rawSkillsMiddleware(appsDir, '/raw/apps/'))
       server.middlewares.use(rawSkillsMiddleware(skillsDir))
     },
     buildStart() {
       fs.mkdirSync(generatedDir, { recursive: true })
 
-      if (!fs.existsSync(skillsDir)) {
-        fs.writeFileSync(path.join(generatedDir, 'skills-data.json'), '[]', 'utf-8')
-        fs.writeFileSync(
-          path.join(generatedDir, 'tags.json'),
-          JSON.stringify(buildTagsIndex([])),
-          'utf-8',
-        )
-        return
-      }
-
-      const entries = fs
-        .readdirSync(skillsDir, { withFileTypes: true })
-        .filter((e) => e.isDirectory())
-
       const skills: SkillEntry[] = []
+      for (const kind of ['skill', 'app'] as const) {
+        const root = kind === 'app' ? appsDir : skillsDir
+        if (!fs.existsSync(root)) continue
+        const entries = fs.readdirSync(root, { withFileTypes: true }).filter((e) => e.isDirectory())
+        for (const entry of entries) {
+          const skillDir = path.join(root, entry.name)
+          let fm: Record<string, unknown>
+          let title: string
+          let icon: string | undefined
+          if (kind === 'app') {
+            const app = readAppPackage(skillDir)
+            fm = { ...app.catalog, metadata: app.metadata, name: entry.name }
+            title = String(app.manifest.display_name || entry.name)
+            icon = app.manifest.icon as string | undefined
+          } else {
+            const skillMdPath = path.join(skillDir, 'SKILL.md')
+            if (!fs.existsSync(skillMdPath)) continue
+            const parsed = parseSkillDocument(fs.readFileSync(skillMdPath, 'utf-8'))
+            fm = parsed.frontmatter
+            title = parsed.title
+          }
+          const meta = (fm.metadata ?? {}) as Record<string, unknown>
 
-      for (const entry of entries) {
-        const skillDir = path.join(skillsDir, entry.name)
-        const skillMdPath = path.join(skillDir, 'SKILL.md')
+          const extraFiles: SkillExtraFiles = {
+            references: collectSubdirFiles(skillDir, 'references'),
+            scripts: collectSubdirFiles(skillDir, 'scripts'),
+            assets: collectSubdirFiles(skillDir, 'assets'),
+          }
 
-        if (!fs.existsSync(skillMdPath)) continue
+          const { relativePaths, totalSize } = collectFiles(skillDir)
+          const lastModified = getLastModified(skillDir)
+          const isFeatured = FEATURED_SKILLS.includes(fm.name as string)
 
-        const { frontmatter, title } = parseSkillMd(skillMdPath)
-        const fm = frontmatter as Record<string, unknown>
-        const meta = (fm.metadata ?? {}) as Record<string, unknown>
+          const skillData: SkillEntry = {
+            icon,
+            simulator: kind === 'app' && fm.simulator === true,
+            kind,
+            key: `${kind}:${entry.name}`,
+            packagePath: `${kind}s/${entry.name}`,
+            rawPath: kind === 'app' ? `/raw/apps/${entry.name}` : `/raw/${entry.name}`,
+            readme: kind === 'app' ? 'README.md' : 'SKILL.md',
+            id: entry.name,
+            name: (fm.name as string) || entry.name,
+            description: (fm.description as string) || '',
+            author: (fm.author as string) || '',
+            title,
+            metadata: meta,
+            extra_files: extraFiles,
+            files: relativePaths,
+            totalSize,
+            lastModified,
+            featured: isFeatured,
+          }
 
-        const extraFiles: SkillExtraFiles = {
-          references: collectSubdirFiles(skillDir, 'references'),
-          scripts: collectSubdirFiles(skillDir, 'scripts'),
-          assets: collectSubdirFiles(skillDir, 'assets'),
+          skills.push(skillData)
+
+          const metadataJson = {
+            simulator: kind === 'app' && fm.simulator === true,
+            kind,
+            files: skillData.files,
+            name: skillData.name,
+            description: skillData.description,
+            author: skillData.author,
+            last_modified: skillData.lastModified,
+            metadata: meta,
+            extra_files: extraFiles,
+          }
+          fs.writeFileSync(
+            path.join(skillDir, '_metadata.json'),
+            JSON.stringify(metadataJson, null, 2),
+            'utf-8',
+          )
         }
-
-        const { relativePaths, totalSize } = collectFiles(skillDir)
-        const lastModified = getLastModified(skillDir)
-        const isFeatured = FEATURED_SKILLS.includes(fm.name as string)
-
-        const skillData: SkillEntry = {
-          id: entry.name,
-          name: (fm.name as string) || entry.name,
-          description: (fm.description as string) || '',
-          author: (fm.author as string) || '',
-          title,
-          metadata: meta,
-          extra_files: extraFiles,
-          files: relativePaths,
-          totalSize,
-          lastModified,
-          featured: isFeatured,
-        }
-
-        skills.push(skillData)
-
-        const metadataJson = {
-          name: skillData.name,
-          description: skillData.description,
-          author: skillData.author,
-          last_modified: skillData.lastModified,
-          metadata: meta,
-          extra_files: extraFiles,
-        }
+      }
+      for (const kind of ['skill', 'app'] as const) {
         fs.writeFileSync(
-          path.join(skillDir, '_metadata.json'),
-          JSON.stringify(metadataJson, null, 2),
+          path.join(generatedDir, `${kind}s-data.json`),
+          JSON.stringify(skills.filter((entry) => entry.kind === kind)),
           'utf-8',
         )
       }
-
-      fs.writeFileSync(path.join(generatedDir, 'skills-data.json'), JSON.stringify(skills), 'utf-8')
+      fs.writeFileSync(
+        path.join(generatedDir, 'catalog-data.json'),
+        JSON.stringify(skills),
+        'utf-8',
+      )
       fs.writeFileSync(
         path.join(generatedDir, 'tags.json'),
         JSON.stringify(buildTagsIndex(skills)),
@@ -351,21 +363,11 @@ export default function skillsPlugin(): Plugin {
     writeBundle(options) {
       const outDir = options.dir || path.resolve(process.cwd(), 'dist')
       const rawDest = path.join(outDir, 'raw')
-      const skillsDataPath = path.join(generatedDir, 'skills-data.json')
-      const tagsDataPath = path.join(generatedDir, 'tags.json')
-
-      if (fs.existsSync(skillsDir)) {
-        copyDir(skillsDir, rawDest)
-      }
-
-      if (fs.existsSync(skillsDataPath)) {
-        fs.mkdirSync(rawDest, { recursive: true })
-        fs.copyFileSync(skillsDataPath, path.join(rawDest, 'skills-data.json'))
-      }
-
-      if (fs.existsSync(tagsDataPath)) {
-        fs.mkdirSync(rawDest, { recursive: true })
-        fs.copyFileSync(tagsDataPath, path.join(rawDest, 'tags.json'))
+      if (fs.existsSync(skillsDir)) copyDir(skillsDir, rawDest)
+      if (fs.existsSync(appsDir)) copyDir(appsDir, path.join(rawDest, 'apps'))
+      fs.mkdirSync(rawDest, { recursive: true })
+      for (const file of INDEX_FILES) {
+        fs.copyFileSync(path.join(generatedDir, file), path.join(rawDest, file))
       }
     },
   }

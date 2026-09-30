@@ -17,7 +17,7 @@ const router = createRouter({
           component: () => import('@/views/HomeView.vue'),
         },
         {
-          path: 'skill/:id',
+          path: ':kind(skill|app)/:id',
           name: 'detail',
           component: () => import('@/views/DetailView.vue'),
           props: true,

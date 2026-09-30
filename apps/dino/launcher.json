@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "id": "dino",
+  "entry": "scripts/dino.lua",
+  "display_name": "Dino",
+  "icon": "assets/icon.jpg",
+  "args": {},
+  "order": 10,
+  "visible": true,
+  "catalog": {
+    "description": "点击或按键开始、跳跃和重试；支持暂停/继续，右上角 × 返回 Launcher。",
+    "author": "ESP-Claw contributor",
+    "simulator": true,
+    "category": [
+      "game",
+      "ui"
+    ],
+    "tags": [
+      "dino",
+      "touch",
+      "button",
+      "gpio",
+      "runner"
+    ],
+    "peripherals": [
+      "display"
+    ]
+  }
+}

@@ -1,14 +1,26 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { useSkillsStore } from '@/stores/skills'
+import type { PackageKind } from '@/types/skill'
 import { ALLOWED_CATEGORIES } from '@/config/allowlist'
 
 const { t } = useI18n()
 const store = useSkillsStore()
+const kinds: (PackageKind | 'all')[] = ['all', 'app', 'skill']
 </script>
 
 <template>
   <aside class="sidebar">
+    <button
+      v-for="kind in kinds"
+      :key="kind"
+      class="sidebar-item"
+      :class="{ active: store.activeKind === kind }"
+      @click="store.activeKind = kind"
+    >
+      {{ t(`package.${kind}`) }}
+    </button>
+    <div class="sidebar-divider" />
     <button
       class="sidebar-item"
       :class="{ active: store.activeCategory === 'featured' }"

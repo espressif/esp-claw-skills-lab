@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "id": "codex_usage_dashboard",
+  "display_name": "Codex Usage",
+  "entry": "scripts/codex_usage_dashboard.lua",
+  "args": {},
+  "order": 16,
+  "visible": true,
+  "catalog": {
+    "description": "显示 5 小时与每周剩余额度，每分钟自动刷新；支持手动刷新、失败提示及右上角退出。",
+    "author": "",
+    "simulator": true,
+    "category": [
+      "utility",
+      "ai"
+    ],
+    "tags": [
+      "codex",
+      "usage",
+      "quota",
+      "dashboard"
+    ],
+    "peripherals": [
+      "display"
+    ]
+  },
+  "icon": "assets/icon.jpg"
+}

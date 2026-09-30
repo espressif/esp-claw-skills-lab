@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import matter from 'gray-matter'
+import { parseSkillDocument } from '../build/skill-package'
 import { ALLOWED_CATEGORIES, ALLOWED_PERIPHERALS } from '../src/config/allowlist'
 
 const skillsDir = path.resolve(import.meta.dirname, '..', 'skills')
@@ -9,8 +9,6 @@ interface ValidationError {
   skill: string
   message: string
 }
-
-interface JsonMatterOptions extends matter.GrayMatterOption<string, JsonMatterOptions> {}
 
 const errors: ValidationError[] = []
 
@@ -36,11 +34,6 @@ function validateAuthor(skill: string, author: unknown) {
 
 function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'string')
-}
-
-function isSafeSkillRelativePath(value: string): boolean {
-  const normalized = value.replaceAll('\\', '/')
-  return Boolean(normalized) && !normalized.startsWith('/') && !normalized.includes('..')
 }
 
 if (!fs.existsSync(skillsDir)) {
@@ -72,26 +65,20 @@ for (const entry of entries) {
 
   try {
     const raw = fs.readFileSync(skillMdPath, 'utf-8')
-    const matterOptions: JsonMatterOptions = {
-      engines: {
-        json: {
-          parse: (s: string) => JSON.parse(s),
-          stringify: (o: unknown) => JSON.stringify(o),
-        },
-      },
-      language: 'json',
-    }
-    const parsed = matter(raw, matterOptions)
-    frontmatter = parsed.data
+    const parsed = parseSkillDocument(raw)
+    frontmatter = parsed.frontmatter
     content = parsed.content
   } catch (e) {
-    addError(skillId, `Failed to parse frontmatter: ${e instanceof Error ? e.message : String(e)}`)
+    addError(skillId, `Invalid Skill document: ${e instanceof Error ? e.message : String(e)}`)
     continue
   }
 
-  if (!frontmatter.name || typeof frontmatter.name !== 'string') {
+  if (typeof frontmatter.name !== 'string' || !frontmatter.name.trim()) {
     addError(skillId, '`name` must be a non-empty string')
   } else {
+    if (!/^[A-Za-z0-9_-]{1,63}$/.test(frontmatter.name)) {
+      addError(skillId, '`name` must contain 1–63 ASCII letters, digits, underscores, or hyphens')
+    }
     if (frontmatter.name !== skillId) {
       addError(skillId, `\`name\` ("${frontmatter.name}") must match directory name ("${skillId}")`)
     }
@@ -101,7 +88,7 @@ for (const entry of entries) {
     seenNames.add(frontmatter.name)
   }
 
-  if (!frontmatter.description || typeof frontmatter.description !== 'string') {
+  if (typeof frontmatter.description !== 'string' || !frontmatter.description.trim()) {
     addError(skillId, '`description` must be a non-empty string')
   }
 
@@ -110,49 +97,20 @@ for (const entry of entries) {
   }
 
   const metadata = frontmatter.metadata as Record<string, unknown> | undefined
-  if (!metadata || typeof metadata !== 'object') {
+  if (metadata !== undefined && (!metadata || typeof metadata !== 'object' || Array.isArray(metadata))) {
     addError(skillId, '`metadata` must be an object')
-  } else {
+  } else if (metadata) {
+    const groups = metadata.cap_groups
+    if (groups !== undefined && (!isStringArray(groups) || groups.some((group) => !group.trim()) || new Set(groups).size !== groups.length)) {
+      addError(skillId, '`metadata.cap_groups` must contain unique non-empty strings')
+    }
     const categories = metadata.category
-    if (!Array.isArray(categories) || categories.length === 0) {
+    if (categories !== undefined && (!isStringArray(categories) || categories.length === 0)) {
       addError(skillId, '`metadata.category` must be a non-empty array')
-    } else {
+    } else if (isStringArray(categories)) {
       for (const cat of categories) {
         if (!(ALLOWED_CATEGORIES as readonly string[]).includes(cat as string)) {
           addError(skillId, `Unknown category: "${cat}". Allowed: ${ALLOWED_CATEGORIES.join(', ')}`)
-        }
-      }
-    }
-
-    if (isStringArray(categories) && categories.includes('ui')) {
-      const simulator = frontmatter.simulator as Record<string, unknown> | undefined
-      if (!simulator || typeof simulator !== 'object') {
-        addError(skillId, '`simulator` must be defined for UI skills')
-      } else {
-        const entryPath = simulator.entry
-        const files = simulator.files
-        if (typeof entryPath !== 'string' || !isSafeSkillRelativePath(entryPath)) {
-          addError(skillId, '`simulator.entry` must be a safe skill-relative path')
-        }
-        if (!isStringArray(files) || files.length === 0) {
-          addError(skillId, '`simulator.files` must be a non-empty array of skill-relative paths')
-        } else {
-          const normalizedFiles = files.map((file) => file.replaceAll('\\', '/'))
-          for (const file of files) {
-            if (!isSafeSkillRelativePath(file)) {
-              addError(skillId, `Invalid simulator file path: "${file}"`)
-              continue
-            }
-            if (!fs.existsSync(path.join(skillDir, file))) {
-              addError(skillId, `Simulator file does not exist: "${file}"`)
-            }
-          }
-          if (
-            typeof entryPath === 'string' &&
-            !normalizedFiles.includes(entryPath.replaceAll('\\', '/'))
-          ) {
-            addError(skillId, '`simulator.files` must include `simulator.entry`')
-          }
         }
       }
     }
@@ -192,11 +150,23 @@ for (const entry of entries) {
     }
   }
 
-  const h1Matches = content.match(/^#\s+.+$/gm)
-  if (!h1Matches) {
-    addError(skillId, 'SKILL.md must contain exactly one H1 heading')
-  } else if (h1Matches.length > 1) {
-    addError(skillId, `SKILL.md has ${h1Matches.length} H1 headings, expected exactly 1`)
+  // Check literal package paths, including examples passed to file tools.
+  const packageRoot = fs.realpathSync(skillDir)
+  for (const match of content.matchAll(/\{CUR_SKILL_DIR\}\/([^\s`"'<>()[\]{}]+)/g)) {
+    const relative = match[1]
+    if (relative.includes('\\') || relative.split('/').includes('..') || path.isAbsolute(relative)) {
+      addError(skillId, `Package reference must stay inside its Skill: "${relative}"`)
+      continue
+    }
+    const target = path.join(skillDir, relative)
+    if (!fs.existsSync(target)) {
+      addError(skillId, `Package reference does not exist: "${relative}"`)
+      continue
+    }
+    const resolved = fs.realpathSync(target)
+    if (resolved !== packageRoot && !resolved.startsWith(packageRoot + path.sep)) {
+      addError(skillId, `Package reference resolves outside its Skill: "${relative}"`)
+    }
   }
 }
 

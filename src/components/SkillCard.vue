@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import AppIcon from '@/components/AppIcon.vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ArrowRight, Play } from '@lucide/vue'
 import type { SkillData } from '@/types/skill'
-import { buildSkillSimulatorUrl, isSimulatorSkill } from '@/utils/simulator'
+import { buildAppSimulatorUrl, canSimulateApp } from '@/utils/simulator'
 
 const props = defineProps<{ skill: SkillData }>()
 const router = useRouter()
@@ -14,23 +15,28 @@ const authorName = computed(() => {
   const rawAuthor = props.skill.author?.trim() || 'Unknown'
   return rawAuthor.split('<')[0]?.trim() || rawAuthor
 })
-const canSimulate = computed(() => isSimulatorSkill(props.skill))
+const canSimulate = computed(() => canSimulateApp(props.skill))
 
 function goToDetail() {
-  router.push(`/${lang.value}/skill/${props.skill.id}`)
+  router.push(`/${lang.value}/${props.skill.kind}/${props.skill.id}`)
 }
 
 function openSimulator() {
-  window.open(buildSkillSimulatorUrl(props.skill), '_blank', 'noopener,noreferrer')
+  window.open(buildAppSimulatorUrl(props.skill), '_blank', 'noopener,noreferrer')
 }
 </script>
 
 <template>
   <div class="skill-card" tabindex="0" @click="goToDetail" @keydown.enter="goToDetail">
     <div class="card-top">
-      <div class="card-copy">
-        <h3 class="card-title">{{ skill.title || skill.name }}</h3>
-        <p class="card-author">by {{ authorName }}</p>
+      <div class="card-identity">
+        <AppIcon
+          :src="skill.kind === 'app' && skill.icon ? `${skill.rawPath}/${skill.icon}` : undefined"
+        />
+        <div class="card-copy">
+          <h3 class="card-title">{{ skill.title || skill.name }}</h3>
+          <p class="card-author">{{ skill.kind === 'app' ? 'App' : 'Skill' }} · {{ authorName }}</p>
+        </div>
       </div>
       <div class="card-actions">
         <button v-if="canSimulate" class="sim-btn" type="button" @click.stop="openSimulator">
@@ -97,6 +103,14 @@ function openSimulator() {
   justify-content: space-between;
   gap: 0.75rem;
   margin-bottom: 0.55rem;
+}
+
+.card-identity {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  flex: 1;
 }
 
 .card-copy {
