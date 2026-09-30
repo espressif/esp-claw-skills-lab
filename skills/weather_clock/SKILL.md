@@ -5,7 +5,6 @@
   "author": "ESP-Claw contributor",
   "metadata": {
     "cap_groups": ["cap_lua", "cap_http_request"],
-    "manage_mode": "web",
     "category": ["utility"],
     "peripherals": ["display"],
     "tags": ["weather", "clock", "seniverse", "forecast"]
@@ -35,7 +34,7 @@ Do not use latitude and longitude for Seniverse requests. Seniverse weather APIs
 Run the controller asynchronously because it owns the display and refreshes continuously:
 
 ```json
-{"path":"{CUR_SKILL_DIR}/scripts/start_weather_clock.lua","args":{"api_key":"<SENIVERSE_API_KEY>","location":"Shanghai"},"timeout_ms":0,"name":"weather_clock","exclusive":"display","replace":true,"log_bytes":4096}
+{"path":"{CUR_SKILL_DIR}/scripts/start_weather_clock.lua","args":{"api_key":"<SENIVERSE_API_KEY>","location":"Shanghai"},"timeout_ms":0,"name":"weather_clock","exclusive":"display","replace":false,"log_bytes":4096}
 ```
 
 Starting this async script is the only Lua tool call needed to start Weather Clock. The script starts local control endpoints at `/api/lua/weather_clock/control` and `/api/lua/weather_clock/icon`, and calls Seniverse internally through Lua `capability.call("http_request", ...)`. Do not claim the weather has already been fetched just because the async job started; say that Weather Clock is running and will fetch Seniverse data in the background. To verify the fetch, inspect the async job log for lines such as `[weather_clock] HTTP Seniverse now`, `[weather_clock] HTTP Seniverse daily`, and `[weather_clock] weather updated`.
@@ -49,13 +48,13 @@ By default it uses Shanghai:
 To start Weather Clock directly on another city when it is not already running, pass the API key and queried location:
 
 ```json
-{"path":"{CUR_SKILL_DIR}/scripts/start_weather_clock.lua","args":{"mode":"switch","api_key":"<SENIVERSE_API_KEY>","location":"Beijing","timezone":"Asia/Shanghai"},"timeout_ms":0,"name":"weather_clock","exclusive":"display","replace":true,"log_bytes":4096}
+{"path":"{CUR_SKILL_DIR}/scripts/start_weather_clock.lua","args":{"mode":"switch","api_key":"<SENIVERSE_API_KEY>","location":"Beijing","timezone":"Asia/Shanghai"},"timeout_ms":0,"name":"weather_clock","exclusive":"display","replace":false,"log_bytes":4096}
 ```
 
 When starting directly, use a Seniverse city V3 ID when available:
 
 ```json
-{"path":"{CUR_SKILL_DIR}/scripts/start_weather_clock.lua","args":{"mode":"switch","api_key":"<SENIVERSE_API_KEY>","location":"WX4FBXXFKE4F","timezone":"Asia/Shanghai"},"timeout_ms":0,"name":"weather_clock","exclusive":"display","replace":true,"log_bytes":4096}
+{"path":"{CUR_SKILL_DIR}/scripts/start_weather_clock.lua","args":{"mode":"switch","api_key":"<SENIVERSE_API_KEY>","location":"WX4FBXXFKE4F","timezone":"Asia/Shanghai"},"timeout_ms":0,"name":"weather_clock","exclusive":"display","replace":false,"log_bytes":4096}
 ```
 
 ## Control Location

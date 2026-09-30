@@ -6,19 +6,11 @@
     "cap_groups": [
       "cap_lua"
     ],
-    "manage_mode": "readonly",
     "category": [
       "utility"
     ],
-    "peripherals": [],
-    "tags": [
-      "camera",
-      "vision",
-      "color-detect",
-      "gimbal",
-      "servo",
-      "lcd"
-    ]
+    "peripherals": ["camera", "display", "servo"],
+    "tags": ["vision", "color-detect", "gimbal", "lcd"]
   }
 }
 ---
@@ -54,16 +46,15 @@ Preview display follows the `esp-hello-new/examples/gimbal_base` camera path by
 default: crop a centered `240x240` square from the board-default camera stream,
 and draw it centered on the `284x240` LCD. Detection runs on that same centered
 crop so off-screen colors do not affect the tracked box. Each display frame
-uses `display.begin_frame({ clear = false, preserve = false })`, draws the image
-first, draws the detection rectangle as a separate display primitive, then calls
-`display.present_full()` and `display.end_frame({ wait = false })` so
-double-buffered panels can refresh asynchronously.
+uses `screen:begin()`, draws the image and overlay, then submits with
+`screen:present({ full = true })`. Camera discovery uses `camera.list_devices()`;
+the built-in screen is opened with `display.open()`.
 
 ## Default Hardware
 
-- Camera device: from `board_manager.get_camera_paths()`
+- Camera device: from `camera.list_devices()`
 - Camera stream: board default mode from `camera.open(dev_path)`
-- LCD panel: from `board_manager.get_display_lcd_params("display_lcd")`
+- LCD panel: from `display.open()`
 - X servo GPIO: `4`
 - Y servo GPIO: `5`
 - PWM driver: `ledc`, `50 Hz`, `500 us .. 2500 us`
@@ -188,7 +179,7 @@ Start color tracking:
   "timeout_ms": 0,
   "name": "gimbal_color_detect",
   "exclusive": "gimbal_color_detect",
-  "replace": true
+  "replace": false
 }
 ```
 
@@ -203,7 +194,7 @@ Start tracking a built-in blue preset:
   "timeout_ms": 0,
   "name": "gimbal_color_detect",
   "exclusive": "gimbal_color_detect",
-  "replace": true
+  "replace": false
 }
 ```
 
@@ -224,24 +215,14 @@ Start tracking a custom AI-returned color:
   "timeout_ms": 0,
   "name": "gimbal_color_detect",
   "exclusive": "gimbal_color_detect",
-  "replace": true
+  "replace": false
 }
 ```
 
-Required first call when the user says "track this object" / "追踪这个物体":
-activate the `take_picture` skill and run its script with that skill's own
-`{CUR_SKILL_DIR}`.
-
-```json
-{
-  "path": "{CUR_SKILL_DIR}/scripts/take_picture.lua",
-  "args": {
-    "filename": "gimbal_target.jpg",
-    "skip_frames": 3
-  },
-  "timeout_ms": 10000
-}
-```
+When the user says "track this object" / "追踪这个物体", activate the
+`take_picture` skill and follow its own script instructions. Pass
+`filename: "gimbal_target.jpg"` and `skip_frames: 3`; resolve its script path
+from that skill's directory, not this package.
 
 After this call returns the saved JPEG path, inspect that image with AI vision.
 Then start `start_gimbal_color_detect.lua` using the recognized preset color or
@@ -267,7 +248,7 @@ Stop color tracking:
 6. If the recognized color is not one of those presets, ask AI vision for a practical HSV range and register it with `target_color_name` plus `target_h_min`, `target_h_max`, `target_s_min`, `target_s_max`, `target_v_min`, and `target_v_max`.
 7. If the user gives no color and does not refer to a specific visible object, run the tracker with no color args; it defaults to the built-in `green` preset.
 8. Run the tracking script with `lua_run_script_async`.
-9. Use `timeout_ms: 0`, `name: "gimbal_color_detect"`, `exclusive: "gimbal_color_detect"`, and `replace: true`.
+9. Use `timeout_ms: 0`, `name: "gimbal_color_detect"`, `exclusive: "gimbal_color_detect"`, and `replace: false`.
 10. Tune `x_gain` / `y_gain` signs if servo direction is reversed on a specific mount.
 
 ## Color Registration Hints

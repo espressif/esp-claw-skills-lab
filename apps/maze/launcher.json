@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "id": "maze",
+  "entry": "scripts/draw_maze.lua",
+  "display_name": "Maze",
+  "args": {},
+  "order": 20,
+  "visible": true,
+  "catalog": {
+    "description": "Generate, draw, and solve animated mazes on the board display using local Lua computation. Use when the user asks to show, draw, generate, solve, or animate a maze.",
+    "category": [
+      "utility"
+    ],
+    "tags": [],
+    "peripherals": [
+      "display"
+    ],
+    "simulator": true
+  },
+  "icon": "assets/icon.jpg"
+}

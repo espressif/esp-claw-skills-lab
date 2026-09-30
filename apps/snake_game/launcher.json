@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "id": "snake_game",
+  "entry": "scripts/snake_game.lua",
+  "display_name": "Snake",
+  "args": {
+    "run_time_ms": 0
+  },
+  "order": 20,
+  "visible": true,
+  "catalog": {
+    "description": "Play a touch-swipe Snake game with a responsive blue-white cyber interface, data-link boot animation, evolving color trail, and sound effects.",
+    "category": [
+      "game",
+      "ui"
+    ],
+    "tags": [
+      "snake",
+      "arcade",
+      "touch",
+      "swipe",
+      "cyber",
+      "sound"
+    ],
+    "peripherals": [
+      "display"
+    ],
+    "simulator": true,
+    "author": "ESP-Claw contributor"
+  },
+  "icon": "assets/icon.jpg"
+}

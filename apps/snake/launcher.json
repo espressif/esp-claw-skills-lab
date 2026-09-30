@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "id": "snake",
+  "entry": "scripts/draw_snake.lua",
+  "display_name": "Snake Animation",
+  "args": {},
+  "order": 20,
+  "visible": true,
+  "catalog": {
+    "description": "Show a continuous automatic Snake game animation on the board display. Use when the user asks to play, show, draw, or animate Snake on screen.",
+    "category": [
+      "utility"
+    ],
+    "tags": [],
+    "peripherals": [
+      "display"
+    ],
+    "simulator": true
+  },
+  "icon": "assets/icon.jpg"
+}

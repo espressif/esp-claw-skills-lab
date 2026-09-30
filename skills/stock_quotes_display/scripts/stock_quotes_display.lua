@@ -1,8 +1,32 @@
 local arg_schema = require("arg_schema")
-local board_manager = require("board_manager")
 local capability = require("capability")
 local delay = require("delay")
 local display = require("display")
+local canvas
+-- Follow one contact by ID and preserve its last position on release.
+local touch_id, touch_x, touch_y = nil, 0, 0
+local function poll_touch_snapshot()
+    local point
+    local points = canvas:touch().points
+    for _, candidate in ipairs(points) do
+        if touch_id == nil or candidate.id == touch_id then point = candidate; break end
+    end
+    local was_pressed = touch_id ~= nil
+    if point then touch_id, touch_x, touch_y = point.id, point.x, point.y else touch_id = nil end
+    return { pressed = point ~= nil, just_pressed = point ~= nil and not was_pressed,
+        just_released = point == nil and was_pressed, x = touch_x, y = touch_y }
+end
+-- Keep alignment local; the display API draws text at an explicit origin.
+local function aligned_text(x, y, w, h, text, opts)
+    opts = opts or {}
+    opts.font_size = math.max(8, math.min(64, math.floor(opts.font_size or 24)))
+    if opts.bg then canvas:fill_rect(math.floor(x), math.floor(y), math.floor(w), math.floor(h), opts.bg) end
+    local tw, th = canvas:measure_text(text, opts)
+    if opts.align == "center" then x = x + (w - tw) // 2 elseif opts.align == "right" then x = x + w - tw end
+    if opts.valign == "middle" then y = y + (h - th) // 2 elseif opts.valign == "bottom" then y = y + h - th end
+    canvas:text(math.floor(x), math.floor(y), text, opts)
+end
+
 local json = require("json")
 
 local TAG = "[stock_quotes_display]"
@@ -242,12 +266,12 @@ end
 local function draw_label_value(x, y, w, label, value, value_color)
     local label_w = 62
 
-    display.draw_text(x, y, label, {
+    canvas:text(x, y, label, {
         color = COLORS.muted,
         font_size = 12,
         bg = COLORS.panel,
     })
-    display.draw_text_aligned(x + label_w, y, w - label_w, 14, value, {
+    aligned_text(x + label_w, y, w - label_w, 14, value, {
         color = value_color or COLORS.text,
         font_size = 12,
         bg = COLORS.panel,
@@ -259,14 +283,14 @@ end
 local function draw_metric_row(x, y, w, row_h, label, value, value_color, label_font, value_font)
     local label_w = (w >= 360) and 128 or 74
 
-    display.draw_text_aligned(x, y, label_w, row_h, label, {
+    aligned_text(x, y, label_w, row_h, label, {
         color = COLORS.muted,
         font_size = label_font,
         bg = COLORS.panel,
         align = "left",
         valign = "middle",
     })
-    display.draw_text_aligned(x + label_w, y, w - label_w, row_h, value, {
+    aligned_text(x + label_w, y, w - label_w, row_h, value, {
         color = value_color or COLORS.text,
         font_size = value_font,
         bg = COLORS.panel,
@@ -276,47 +300,47 @@ local function draw_metric_row(x, y, w, row_h, label, value, value_color, label_
 end
 
 local function draw_error(width, height, message)
-    display.begin_frame({ clear = true, color = COLORS.bg })
-    display.fill_round_rect(8, 8, width - 16, height - 16, 12, COLORS.panel)
-    display.draw_round_rect(8, 8, width - 16, height - 16, 12, COLORS.border)
-    display.draw_text_aligned(16, 24, width - 32, 24, "Stock Quotes", {
+    canvas:begin({ clear = COLORS.bg })
+    canvas:fill_round_rect(8, 8, width - 16, height - 16, 12, COLORS.panel)
+    canvas:stroke_round_rect(8, 8, width - 16, height - 16, 12, COLORS.border)
+    aligned_text(16, 24, width - 32, 24, "Stock Quotes", {
         color = COLORS.yellow,
         font_size = 20,
         bg = COLORS.panel,
         align = "center",
         valign = "middle",
     })
-    display.draw_text_aligned(16, 64, width - 32, height - 80, safe_text(message, "Error"), {
+    aligned_text(16, 64, width - 32, height - 80, safe_text(message, "Error"), {
         color = COLORS.error,
         font_size = 12,
         bg = COLORS.panel,
         align = "center",
         valign = "middle",
     })
-    display.present()
-    display.end_frame()
+    canvas:present()
+
 end
 
 local function draw_loading(width, height)
-    display.begin_frame({ clear = true, color = COLORS.bg })
-    display.fill_round_rect(8, 8, width - 16, height - 16, 12, COLORS.panel)
-    display.draw_round_rect(8, 8, width - 16, height - 16, 12, COLORS.border)
-    display.draw_text_aligned(16, 52, width - 32, 32, "Stock Quotes", {
+    canvas:begin({ clear = COLORS.bg })
+    canvas:fill_round_rect(8, 8, width - 16, height - 16, 12, COLORS.panel)
+    canvas:stroke_round_rect(8, 8, width - 16, height - 16, 12, COLORS.border)
+    aligned_text(16, 52, width - 32, 32, "Stock Quotes", {
         color = COLORS.yellow,
         font_size = 22,
         bg = COLORS.panel,
         align = "center",
         valign = "middle",
     })
-    display.draw_text_aligned(16, 92, width - 32, 22, "Loading Eastmoney data...", {
+    aligned_text(16, 92, width - 32, 22, "Loading Eastmoney data...", {
         color = COLORS.muted,
         font_size = 14,
         bg = COLORS.panel,
         align = "center",
         valign = "middle",
     })
-    display.present()
-    display.end_frame()
+    canvas:present()
+
 end
 
 local function draw_quotes(width, height, quotes, detail_index, status)
@@ -354,9 +378,9 @@ local function draw_quotes(width, height, quotes, detail_index, status)
     }
     local detail_bottom = card_y + card_h - (large_screen and 38 or 24)
 
-    display.begin_frame({ clear = true, color = COLORS.bg })
-    display.fill_round_rect(card_x, card_y, card_w, card_h, 12, COLORS.panel)
-    display.draw_round_rect(card_x, card_y, card_w, card_h, 12, COLORS.border)
+    canvas:begin({ clear = COLORS.bg })
+    canvas:fill_round_rect(card_x, card_y, card_w, card_h, 12, COLORS.panel)
+    canvas:stroke_round_rect(card_x, card_y, card_w, card_h, 12, COLORS.border)
 
     for _, field in ipairs(detail_fields) do
         if detail_y > detail_bottom then
@@ -366,7 +390,7 @@ local function draw_quotes(width, height, quotes, detail_index, status)
         detail_y = detail_y + field[6]
     end
 
-    display.draw_text_aligned(card_x + 8, card_y + card_h - 24, card_w - 16, 14, clipped_text(status, large_screen and 36 or 28, "status"), {
+    aligned_text(card_x + 8, card_y + card_h - 24, card_w - 16, 14, clipped_text(status, large_screen and 36 or 28, "status"), {
         color = COLORS.muted,
         font_size = large_screen and 12 or 10,
         bg = COLORS.panel,
@@ -385,20 +409,20 @@ local function draw_quotes(width, height, quotes, detail_index, status)
         local row_color = quote_color(row)
         local bg = (quote_index == detail_index) and COLORS.panel_alt or COLORS.bg
 
-        display.fill_round_rect(card_x, y, width - card_x * 2, row_h - 4, 5, bg)
-        display.draw_text(card_x + 8, y + 5, display_name(row, large_screen and 12 or 9), {
+        canvas:fill_round_rect(card_x, y, width - card_x * 2, row_h - 4, 5, bg)
+        canvas:text(card_x + 8, y + 5, display_name(row, large_screen and 12 or 9), {
             color = (quote_index == detail_index) and COLORS.yellow or COLORS.text,
             font_size = large_screen and 14 or 12,
             bg = bg,
         })
-        display.draw_text_aligned(math.floor(width * 0.38), y + 5, math.floor(width * 0.26), 14, fmt_num(row.f2, 2), {
+        aligned_text(math.floor(width * 0.38), y + 5, math.floor(width * 0.26), 14, fmt_num(row.f2, 2), {
             color = row_color,
             font_size = large_screen and 14 or 12,
             bg = bg,
             align = "right",
         })
         if width > 210 then
-            display.draw_text_aligned(math.floor(width * 0.68), y + 5, width - math.floor(width * 0.68) - card_x - 8, 14, fmt_pct(row.f3), {
+            aligned_text(math.floor(width * 0.68), y + 5, width - math.floor(width * 0.68) - card_x - 8, 14, fmt_pct(row.f3), {
                 color = row_color,
                 font_size = large_screen and 14 or 12,
                 bg = bg,
@@ -407,8 +431,8 @@ local function draw_quotes(width, height, quotes, detail_index, status)
         end
     end
 
-    display.present()
-    display.end_frame()
+    canvas:present()
+
 end
 
 local function should_stop(start_s)
@@ -420,7 +444,6 @@ end
 
 local function run()
     local secids = sanitize_secids(raw_string("secids", DEFAULT_SECIDS))
-    local panel_handle, io_handle, lcd_w, lcd_h, panel_if = board_manager.get_display_lcd_params("display_lcd")
     local width
     local height
     local quotes = nil
@@ -430,17 +453,10 @@ local function run()
     local start_s = os.time()
     local status = "init"
 
-    if not panel_handle then
-        error("get_display_lcd_params(display_lcd) failed: " .. tostring(io_handle))
-    end
+    canvas = display.open()
 
-    local ok, err = pcall(display.init, panel_handle, io_handle, lcd_w, lcd_h, panel_if)
-    if not ok then
-        error("display.init failed: " .. tostring(err))
-    end
-
-    width = display.width
-    height = display.height
+    width = canvas:info().width
+    height = canvas:info().height
     if width <= 0 or height <= 0 then
         error("invalid display size")
     end
@@ -475,8 +491,8 @@ local function run()
             next_fetch_ms = elapsed_ms + ctx.refresh_ms
         end
 
-        local touch_ok, touch = pcall(display.read_touch, 0)
-        if touch_ok and touch and quotes and #quotes > 0 and touch.type == "release" then
+        local touch_ok, touch = pcall(poll_touch_snapshot)
+        if touch_ok and touch and quotes and #quotes > 0 and touch.just_released then
             detail_index = detail_index + 1
             if detail_index > #quotes then
                 detail_index = 1
@@ -492,10 +508,9 @@ end
 local ok, err = xpcall(run, debug.traceback)
 if not ok then
     print(TAG .. " ERROR: " .. tostring(err))
-    pcall(display.end_frame)
-    pcall(display.deinit)
+
+    if canvas then canvas:close(); canvas = nil end
     error(err)
 end
 
-pcall(display.end_frame)
-pcall(display.deinit)
+if canvas then canvas:close(); canvas = nil end

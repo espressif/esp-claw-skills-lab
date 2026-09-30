@@ -7,14 +7,7 @@
     "category": ["utility", "ui"],
     "tags": ["stock", "quotes", "eastmoney", "market"],
     "peripherals": ["display"],
-    "cap_groups": ["cap_lua", "cap_http_request"],
-    "manage_mode": "web"
-  },
-  "simulator": {
-    "entry": "scripts/stock_quotes_display.lua",
-    "files": [
-      "scripts/stock_quotes_display.lua"
-    ]
+    "cap_groups": ["cap_lua", "cap_http_request"]
   }
 }
 ---
@@ -41,11 +34,16 @@ ASCII text.
 
 ## Tool Call Inputs
 
+Run through `lua_run_script_async` because the dashboard owns the display.
+
 ```json
 {
   "path": "{CUR_SKILL_DIR}/scripts/stock_quotes_display.lua",
   "args": {},
-  "timeout_ms": 0
+  "timeout_ms": 0,
+  "name": "stock_quotes_display",
+  "exclusive": "display",
+  "replace": false
 }
 ```
 

@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "id": "mosaico-musical",
+  "entry": "scripts/mosaico_musical.lua",
+  "display_name": "Mosaico Musical",
+  "args": {},
+  "order": 20,
+  "visible": true,
+  "catalog": {
+    "description": "Play a six-string Mosaico guitar: choose simple chords, tap strings, or swipe to strum.",
+    "category": [
+      "media",
+      "ui"
+    ],
+    "tags": [
+      "guitar",
+      "instrument",
+      "chords",
+      "strum",
+      "touch"
+    ],
+    "peripherals": [
+      "display",
+      "speaker"
+    ],
+    "simulator": true,
+    "author": "xujiamu"
+  },
+  "icon": "assets/icon.jpg"
+}

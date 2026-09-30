@@ -1,8 +1,7 @@
-local board_manager = require("board_manager")
 local delay = require("delay")
 local json = require("json")
-local lcd_touch = require("lcd_touch")
 local lvgl = require("lvgl")
+local image = require("image")
 local storage = require("storage")
 local system = require("system")
 local thread = require("thread")
@@ -44,7 +43,6 @@ end
 
 local cfg = nil
 local paths = {}
-local touch_handle = nil
 local side = nil
 local worker_job_name = nil
 local worker_cmd_queue = nil
@@ -179,14 +177,6 @@ local function load_config()
     return next_cfg
 end
 
-local function rgb565(r, g, b)
-    return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
-end
-
-local function pack_rgb565_be(value)
-    return string.pack(">I2", value & 0xFFFF)
-end
-
 local function pack_argb8888(r, g, b, alpha)
     return string.char(b & 0xFF, g & 0xFF, r & 0xFF, alpha & 0xFF)
 end
@@ -208,48 +198,6 @@ local function isqrt(n)
     return lo
 end
 
-local function paint_disc_base(size, label_r)
-    local cx = math.floor(size / 2)
-    local cy = math.floor(size / 2)
-    local disc_r = math.floor(size / 2) - 1
-    local disc_r2 = disc_r * disc_r
-    local label_r2 = label_r * label_r
-    local border_inner = disc_r - VINYL_BORDER_PX
-    local border_inner2 = border_inner > 0 and border_inner * border_inner or 0
-    local black = rgb565(0, 0, 0)
-    local vinyl0 = rgb565(10, 10, 10)
-    local vinyl1 = rgb565(22, 22, 22)
-    local vinyl2 = rgb565(36, 36, 36)
-    local rim = rgb565(52, 52, 52)
-    local out = {}
-    local i = 1
-
-    for y = 0, size - 1 do
-        for x = 0, size - 1 do
-            local dx = x - cx
-            local dy = y - cy
-            local d2 = dx * dx + dy * dy
-            local c = black
-
-            if d2 <= disc_r2 and d2 <= border_inner2 then
-                local hi = border_inner - 2
-                if hi > 0 and d2 > hi * hi then
-                    c = rim
-                elseif d2 <= label_r2 then
-                    c = black
-                else
-                    local phase = (disc_r - isqrt(d2)) % 3
-                    c = phase == 0 and vinyl2 or (phase == 1 and vinyl1 or vinyl0)
-                end
-            end
-            out[i] = pack_rgb565_be(c)
-            i = i + 1
-        end
-    end
-
-    return table.concat(out)
-end
-
 local function paint_disc_overlay(size, hole_r)
     local cx = math.floor(size / 2)
     local cy = math.floor(size / 2)
@@ -263,8 +211,7 @@ local function paint_disc_overlay(size, hole_r)
     local vinyl1 = pack_argb8888(22, 22, 22, 255)
     local vinyl2 = pack_argb8888(36, 36, 36, 255)
     local rim = pack_argb8888(52, 52, 52, 255)
-    local out = {}
-    local i = 1
+    local out, row = {}, {}
 
     for y = 0, size - 1 do
         for x = 0, size - 1 do
@@ -273,15 +220,15 @@ local function paint_disc_overlay(size, hole_r)
             local d2 = dx * dx + dy * dy
 
             if d2 <= hole_r2 or d2 > disc_r2 or d2 > border_inner2 then
-                out[i] = transparent
+                row[x + 1] = transparent
             elseif d2 > (border_inner - 2) * (border_inner - 2) then
-                out[i] = rim
+                row[x + 1] = rim
             else
                 local phase = (disc_r - isqrt(d2)) % 3
-                out[i] = phase == 0 and vinyl2 or (phase == 1 and vinyl1 or vinyl0)
+                row[x + 1] = phase == 0 and vinyl2 or (phase == 1 and vinyl1 or vinyl0)
             end
-            i = i + 1
         end
+        out[y + 1] = table.concat(row)
     end
 
     return table.concat(out)
@@ -377,14 +324,6 @@ local function arm_points_for_pose(t)
     return pts
 end
 
-local function delete_obj(obj)
-    if obj then
-        pcall(function()
-            obj:delete()
-        end)
-    end
-end
-
 local create_pause_bar
 local set_pause_visible
 
@@ -465,39 +404,18 @@ function create_pause_bar(x_off)
 end
 
 local function init_ui()
-    board_manager.init_device("display_lcd")
-    board_manager.init_device("lcd_touch")
-
-    local panel, io, width, height, panel_if = board_manager.get_display_lcd_params("display_lcd")
-    if not panel then
-        error("display_lcd not available")
-    end
-
-    local initialized, owned_by_current_state = lvgl.is_initialized()
-    if initialized and not owned_by_current_state then
-        error("lvgl runtime is already owned by another Lua script")
-    end
-    if not initialized then
-        lvgl.init(panel, io, width, height, panel_if, {
-            buffer_lines = 20,
-            tick_ms = 5,
-            task_period_ms = 10,
-        })
-        ui.lvgl_owned = true
-    else
-        ui.lvgl_owned = false
-    end
+    lvgl.init({ buffer_lines = 20, tick_ms = 5, task_period_ms = 10 })
+    ui.lvgl_owned = true
+    ui.screen = lvgl.create_screen()
+    local width, height = ui.screen:get_size()
 
     ui.panel_w = width
     ui.panel_h = height
     ui.disc_size = math.min(width, height)
-    ui.cover_size = 148
-    if ui.cover_size > ui.disc_size - 2 * (VINYL_BORDER_PX + 28) then
-        ui.cover_size = ui.disc_size - 2 * (VINYL_BORDER_PX + 28)
-        if (ui.cover_size % 2) ~= 0 then
-            ui.cover_size = ui.cover_size - 1
-        end
-    end
+    assert(ui.disc_size >= 64, "CloudMusic requires a display of at least 64x64")
+    -- Keep the rotated cover corners inside the opaque vinyl overlay.
+    ui.cover_size = math.min(148, math.floor((ui.disc_size / 2 - VINYL_BORDER_PX - 3) * math.sqrt(2)))
+    ui.cover_size = ui.cover_size - ui.cover_size % 2
     ui.disc_cx = math.floor(width / 2)
     ui.disc_cy = math.floor(height / 2)
     ui.playing = false
@@ -505,7 +423,6 @@ local function init_ui()
     ui.arm_pose = 0
     ui.arm_target = 0
 
-    ui.screen = lvgl.create_screen()
     ui.screen:set_style({
         bg_color = "#000000",
         bg_opa = 255,
@@ -513,14 +430,7 @@ local function init_ui()
         border_width = 0,
     })
 
-    ui.disc_img = lvgl.image(ui.screen, {
-        align = "center",
-        w = ui.disc_size,
-        h = ui.disc_size,
-    })
-    ui.disc_img:set_raw_rgb565(ui.disc_size, ui.disc_size,
-        paint_disc_base(ui.disc_size, math.floor(ui.cover_size / 2)),
-        { swapped = true })
+    ui.screen:set_scroll({ dir = "none", scrollbar = "off" })
 
     ui.cover_img = lvgl.image(ui.screen, {
         x = ui.disc_cx - math.floor(ui.cover_size / 2),
@@ -528,9 +438,7 @@ local function init_ui()
         w = ui.cover_size,
         h = ui.cover_size,
     })
-    ui.cover_img:set_raw_rgb565(ui.cover_size, ui.cover_size,
-        string.rep("\0", ui.cover_size * ui.cover_size * 2),
-        { swapped = true, circle_mask = true })
+    ui.cover_img:set_raw_rgb565(ui.cover_size, ui.cover_size, string.rep("\0", ui.cover_size * ui.cover_size * 2))
     ui.cover_img:set_pivot(math.floor(ui.cover_size / 2), math.floor(ui.cover_size / 2))
 
     ui.disc_overlay_img = lvgl.image(ui.screen, {
@@ -539,7 +447,7 @@ local function init_ui()
         h = ui.disc_size,
     })
     ui.disc_overlay_img:set_raw_argb8888(ui.disc_size, ui.disc_size,
-        paint_disc_overlay(ui.disc_size, math.floor(ui.cover_size / 2)))
+        paint_disc_overlay(ui.disc_size, math.floor(ui.cover_size / 2) - 1))
 
     build_arm_poses()
     draw_arm()
@@ -549,12 +457,15 @@ local function init_ui()
     set_pause_visible(true)
 
     ui.screen:load()
-    touch_handle = board_manager.get_lcd_touch_handle("lcd_touch")
-    if touch_handle then
-        pcall(function()
-            lcd_touch.sync(touch_handle)
-        end)
-    end
+    -- A transparent top layer receives touches over every decorative widget.
+    local touch = lvgl.object(ui.screen, { x = 0, y = 0, w = width, h = height, radius = 0, opa = 0 })
+    touch:set_scroll({ dir = "none", scrollbar = "off" })
+    touch:on("pressed", function()
+        local now = now_ms()
+        if now - last_touch_ms < TOUCH_DEBOUNCE_MS then return end
+        last_touch_ms = now
+        queue_command({ type = "control", action = "play_pause" })
+    end)
 end
 
 local function refresh_cover()
@@ -567,11 +478,9 @@ local function refresh_cover()
     end
 
     local ok, err = pcall(function()
-        ui.cover_img:set_jpeg_file(slot.path, {
-            width = ui.cover_size,
-            height = ui.cover_size,
-            circle_mask = true,
-        })
+        local source <close> = image.load_file(slot.path)
+        local cover <close> = image.resize(source, { width = ui.cover_size, height = ui.cover_size, format = image.RGB565 })
+        ui.cover_img:set_raw_rgb565(ui.cover_size, ui.cover_size, cover:data())
         ui.cover_img:set_pivot(math.floor(ui.cover_size / 2), math.floor(ui.cover_size / 2))
         ui.cover_img:set_rotation(math.floor(ui.angle_x10))
         ui.last_cover_id = slot.cover_id
@@ -697,7 +606,7 @@ local function start_worker()
     if type(worker_path) ~= "string" or worker_path == "" then
         worker_path = storage.join_path(current_script_dir(), "cloudmusic_worker.lua")
     end
-    worker_job_name = "cloudmusic_worker"
+    local job_name = "cloudmusic_worker"
     local ok, output = thread.start(worker_path, {
         cfg = cfg,
         paths = paths,
@@ -705,45 +614,23 @@ local function start_worker()
         evt_queue = worker_evt_queue,
     }, {
         timeout_ms = 0,
-        name = worker_job_name,
-        exclusive = worker_job_name,
-        replace = true,
+        name = job_name,
+        exclusive = job_name,
+        replace = false,
     })
 
     if not ok then
         error("CloudMusic worker start failed: " .. tostring(output))
     end
-end
-
-local function handle_screen_touch()
-    if not touch_handle then
-        return
-    end
-
-    local ok, touch = pcall(function()
-        return lcd_touch.poll(touch_handle)
-    end)
-    if not ok or type(touch) ~= "table" then
-        return
-    end
-    if not touch.just_pressed then
-        return
-    end
-
-    local now = now_ms()
-    if now - last_touch_ms < TOUCH_DEBOUNCE_MS then
-        return
-    end
-    last_touch_ms = now
-    print(string.format("[CloudMusic] screen touch (%d,%d) -> play_pause", touch.x or 0, touch.y or 0))
-    queue_command({ type = "control", action = "play_pause" })
+    worker_job_name = job_name
 end
 
 local function init_side_touch()
+    local bus
     local ok, result = pcall(function()
         local i2c = require("i2c")
         local si12t_touch = require("lib_si12t_touch")
-        local bus = i2c.new(0, 2, 3, 100000)
+        bus = i2c.new(0, 2, 3, 100000)
         local touch = si12t_touch.new({
             bus = bus,
             addr = 0x78,
@@ -765,6 +652,7 @@ local function init_side_touch()
             side_prev_mask, side_next_mask))
     else
         side = nil
+        if bus then pcall(bus.close, bus) end
         print("[CloudMusic] Si12T side touch unavailable: " .. tostring(result))
     end
 end
@@ -845,9 +733,8 @@ local function cleanup()
         worker_evt_queue = nil
     end
     if ui.lvgl_owned then
-        pcall(function()
-            lvgl.deinit()
-        end)
+        local ok, err = pcall(lvgl.deinit)
+        if not ok then print("[CloudMusic] display cleanup failed: " .. tostring(err)) end
         ui.lvgl_owned = false
     end
 end
@@ -871,7 +758,6 @@ local function run()
         local dt = math.max(1, now - last_loop)
         last_loop = now
 
-        handle_screen_touch()
         handle_side_touch()
         process_worker_events()
 

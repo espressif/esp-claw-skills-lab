@@ -5,7 +5,6 @@
   "author": "ESP-Claw contributor",
   "metadata": {
     "cap_groups": ["cap_lua"],
-    "manage_mode": "web",
     "category": ["hardware", "utility"],
     "peripherals": ["display"],
     "tags": ["ble", "hid", "imu", "mouse", "airmouse"]
@@ -35,7 +34,7 @@ labels sit on the left side of the screen (rotated 90° CCW).
 Prefer async so the loop keeps running until cancelled:
 
 ```json
-{"path":"{CUR_SKILL_DIR}/scripts/start_air_mouse.lua","args":{"name":"esp-claw-airmouse"},"timeout_ms":0,"name":"air_mouse"}
+{"path":"{CUR_SKILL_DIR}/scripts/start_air_mouse.lua","args":{"name":"esp-claw-airmouse"},"timeout_ms":0,"name":"air_mouse","exclusive":"display","replace":false}
 ```
 
 Use `lua_run_script_async` (or router `run_script` with `"async": true`).

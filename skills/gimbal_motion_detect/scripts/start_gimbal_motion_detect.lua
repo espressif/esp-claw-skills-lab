@@ -1,8 +1,9 @@
 local arg_schema = require("arg_schema")
-local board_manager = require("board_manager")
 local camera = require("camera")
 local delay = require("delay")
 local display = require("display")
+local canvas
+
 local image = require("image")
 local motion_detect = require("motion_detect")
 local system = require("system")
@@ -21,7 +22,7 @@ local DEFAULT_BLOCK_HIT_PIXELS = 10
 local DEFAULT_BOX_PADDING = 2
 local DEFAULT_BOX_DEADBAND = 2
 local DEFAULT_BOX_SNAP_THRESHOLD = 24
-local DISPLAY_BG_COLOR = "black"
+local DISPLAY_BG_COLOR = "#000000"
 
 local display_started = false
 local camera_started = false
@@ -63,8 +64,8 @@ local function cleanup()
         detector = nil
     end
     if display_started then
-        pcall(display.end_frame)
-        pcall(display.deinit)
+
+        if canvas then canvas:close(); canvas = nil end
         display_started = false
     end
     if camera_started then
@@ -113,94 +114,23 @@ local function build_motion_overlay(result, output_w, output_h, src_x, src_y, sr
         y = y,
         width = w,
         height = h,
-        color = "yellow",
+        color = "#ffff00",
     }
 end
 
 local function init_display()
-    local panel_handle, io_handle, lcd_width, lcd_height, panel_if =
-        board_manager.get_display_lcd_params("display_lcd")
-    if not panel_handle then
-        error("get_display_lcd_params failed: " .. tostring(io_handle))
-    end
-    display.init(panel_handle, io_handle, lcd_width, lcd_height, panel_if)
+    canvas = display.open()
     display_started = true
-    pcall(display.backlight, true)
-    display.begin_frame({ clear = false, color = DISPLAY_BG_COLOR, preserve = false })
-    display.clear(DISPLAY_BG_COLOR)
-    display.present_full()
-    display.end_frame()
-
-    local animation_info = display.animation_info()
-    print(string.format(
-        "[gimbal_motion_detect] display framebuffers=%d double_buffered=%s",
-        animation_info.framebuffer_count,
-        tostring(animation_info.double_buffered)
-    ))
-    if not animation_info.double_buffered then
-        print("[gimbal_motion_detect] WARN: display framebuffer allocation fell back to single buffering")
-    end
+    canvas:begin({ clear = DISPLAY_BG_COLOR })
+    canvas:present()
 end
 
 local function init_camera()
-    local camera_paths, path_err = board_manager.get_camera_paths()
-    if not camera_paths then
-        error("get_camera_paths failed: " .. tostring(path_err))
-    end
-
-    -- Use the board default camera stream first. Some board sensors only expose
-    -- one fixed mode, and forcing a reconfiguration can hide the real init error.
-    print("[gimbal_motion_detect] camera dev_path=" .. tostring(camera_paths.dev_path) ..
-          " meta_path=" .. tostring(camera_paths.meta_path))
-
-    local tried = {}
-    local function try_open(path)
-        if not path or tried[path] then
-            return false, nil
-        end
-        tried[path] = true
-        local opened, open_err = pcall(camera.open, path)
-        if opened then
-            print("[gimbal_motion_detect] camera opened path=" .. tostring(path))
-            return true, nil
-        end
-        return false, tostring(open_err)
-    end
-
-    local open_errors = {}
-    local opened, open_err = try_open(camera_paths.dev_path)
-    if not opened and open_err then
-        open_errors[#open_errors + 1] = tostring(camera_paths.dev_path) .. ": " .. open_err
-    end
-    if not opened then
-        for index = 0, 7 do
-            local candidate = "/dev/video" .. tostring(index)
-            local candidate_opened, candidate_err = try_open(candidate)
-            if candidate_opened then
-                opened = true
-                break
-            end
-            if candidate_err then
-                open_errors[#open_errors + 1] = candidate .. ": " .. candidate_err
-            end
-        end
-    end
-    if not opened then
-        error("camera.open failed; tried " .. table.concat(open_errors, " | "))
-    end
+    local devices = camera.list_devices()
+    if #devices == 0 then error("no camera available") end
+    camera.open(devices[1].path)
     camera_started = true
-
-    local info_ok, info_or_err = pcall(camera.info)
-    if not info_ok then
-        error("camera.info failed after open: " .. tostring(info_or_err))
-    end
-    print(string.format("[gimbal_motion_detect] camera stream=%dx%d format=%s",
-        info_or_err.width, info_or_err.height, tostring(info_or_err.pixel_format)))
-
-    local flushed, flush_err = pcall(camera.flush)
-    if not flushed then
-        print("[gimbal_motion_detect] WARN: camera.flush failed: " .. tostring(flush_err))
-    end
+    camera.flush()
 end
 
 local function build_detector(src_x, src_y, src_w, src_h)
@@ -229,8 +159,8 @@ local function run()
 
     local stream = camera.info()
     local src_x, src_y, src_w, src_h = compute_center_square_source_rect(stream.width, stream.height)
-    local dst_x = math.floor((display.width - src_w) / 2)
-    local dst_y = math.floor((display.height - src_h) / 2)
+    local dst_x = math.floor((canvas:info().width - src_w) / 2)
+    local dst_y = math.floor((canvas:info().height - src_h) / 2)
     build_detector(src_x, src_y, src_w, src_h)
 
     local frame_index = 0
@@ -282,8 +212,9 @@ local function run()
         local display_ms = 0
         if (frame_index % ctx.display_every_n) == 0 then
             t0 = system.millis()
-            display.begin_frame({ clear = false, color = DISPLAY_BG_COLOR, preserve = false })
-            local output_w, output_h = display.draw_image(dst_x, dst_y, rgb565, {
+            canvas:begin({ clear = DISPLAY_BG_COLOR })
+            local output_w, output_h = src_w, src_h
+            canvas:image(dst_x, dst_y, rgb565, {
                 mode = "crop",
                 source = {
                     x = src_x,
@@ -297,7 +228,7 @@ local function run()
             local overlay_rect = build_motion_overlay(motion_result, output_w, output_h,
                                                       src_x, src_y, src_w, src_h)
             if overlay_rect then
-                display.draw_rect(
+                canvas:stroke_rect(
                     dst_x + overlay_rect.x,
                     dst_y + overlay_rect.y,
                     overlay_rect.width,
@@ -305,8 +236,7 @@ local function run()
                     overlay_rect.color
                 )
             end
-            display.present_full()
-            display.end_frame({ wait = false })
+            canvas:present({ full = true })
             display_ms = system.millis() - t0
         end
 

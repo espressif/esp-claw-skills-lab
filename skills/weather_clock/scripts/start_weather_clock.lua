@@ -1,5 +1,4 @@
 local arg_schema = require("arg_schema")
-local board_manager = require("board_manager")
 local capability = require("capability")
 local delay = require("delay")
 local json = require("json")
@@ -35,7 +34,6 @@ ctx.mode = raw_args.mode == "query" and "query" or "switch"
 
 local panel_w = 0
 local panel_h = 0
-local touch_registered = false
 local fonts = {}
 local ui = {}
 local paths = {}
@@ -181,11 +179,7 @@ local function safe_date(fmt)
 end
 
 local function load_font(size, cache_size)
-    local path = storage.join_path(storage.get_root_dir(), "fonts", "NotoSansSC-Regular.ttf")
-    if not storage.exists(path) then
-        return nil
-    end
-    local ok, font = pcall(lvgl.font_load, path, {
+    local ok, font = pcall(lvgl.font_load, {
         size = size,
         cache_size = cache_size or 96,
     })
@@ -359,34 +353,33 @@ local function poll_config(now)
 end
 
 local function init_control_queue()
-    control_queue = "weather_clock_ctrl"
-    pcall(function()
-        thread.sync.queue_delete(control_queue)
-    end)
-    local ok, err = thread.sync.queue_create(control_queue, {
+    local queue_name = "weather_ctrl_" .. tostring(system.millis() % 1000000)
+    local ok, err = thread.sync.queue_create(queue_name, {
         depth = CONTROL_QUEUE_DEPTH,
         item_size = CONTROL_QUEUE_ITEM_SIZE,
     })
     if not ok then
         error("weather control queue create failed: " .. tostring(err))
     end
+    control_queue = queue_name
 end
 
 local function start_control_server()
     local worker_path = storage.join_path(current_script_dir(), "weather_control_server.lua")
-    control_worker_job = "weather_clock_control"
+    local job_name = "weather_clock_control"
     local ok, output = thread.start(worker_path, {
         app_id = CONTROL_APP_ID,
         queue_name = control_queue,
     }, {
         timeout_ms = 0,
-        name = control_worker_job,
-        exclusive = control_worker_job,
-        replace = true,
+        name = job_name,
+        exclusive = job_name,
+        replace = false,
     })
     if not ok then
         error("weather control server start failed: " .. tostring(output))
     end
+    control_worker_job = job_name
 end
 
 local function process_icon_event(event)
@@ -1110,28 +1103,8 @@ local function refresh_weather()
 end
 
 local function init_lvgl()
-    board_manager.init_device("display_lcd")
-    board_manager.init_device("lcd_touch")
-
-    local panel_handle, io_handle, width, height, panel_if =
-        board_manager.get_display_lcd_params("display_lcd")
-    if not panel_handle then
-        error("display_lcd not available")
-    end
-
-    lvgl.init(panel_handle, io_handle, width, height, panel_if, {
-        buffer_lines = 40,
-        tick_ms = 5,
-        task_period_ms = 10,
-    })
-    panel_w = width
-    panel_h = height
-
-    local touch_handle = board_manager.get_lcd_touch_handle("lcd_touch")
-    if touch_handle then
-        local ok = pcall(lvgl.indev_register, "touch", touch_handle)
-        touch_registered = ok
-    end
+    lvgl.init({ buffer_lines = 40, tick_ms = 5, task_period_ms = 10 })
+    panel_w, panel_h = lvgl.screen():get_size()
 end
 
 local function cleanup()
@@ -1146,10 +1119,6 @@ local function cleanup()
             thread.sync.queue_delete(control_queue)
         end)
         control_queue = nil
-    end
-    if touch_registered then
-        pcall(lvgl.indev_unregister, "touch")
-        touch_registered = false
     end
     pcall(lvgl.deinit)
     for _, f in pairs(fonts) do
