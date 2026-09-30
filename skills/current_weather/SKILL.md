@@ -7,8 +7,7 @@
     {
       "category": ["utility"],
       "tags": ["weather", "info"],
-      "cap_groups": ["cap_lua", "cap_web_search"],
-      "manage_mode": "web"
+      "cap_groups": ["cap_lua", "cap_http_request"]
     }
 }
 ---

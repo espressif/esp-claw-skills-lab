@@ -17,7 +17,6 @@ local action = type(raw_args.action) == "string" and raw_args.action or "status"
 local station = type(raw_args.station) == "string" and raw_args.station or ""
 local url = type(raw_args.url) == "string" and raw_args.url or ""
 local title = type(raw_args.title) == "string" and raw_args.title or ""
-local codec_name = type(raw_args.codec_name) == "string" and raw_args.codec_name ~= "" and raw_args.codec_name or common.DEFAULT_CODEC_NAME
 
 local VALID_ACTIONS = {
   play = true,
@@ -65,7 +64,6 @@ local function start_daemon_if_needed()
   end
 
   local ok, err = thread.start(daemon_path(), {
-    codec_name = codec_name,
   }, {
     name = common.DAEMON_JOB_NAME,
     exclusive = common.DAEMON_EXCLUSIVE,
@@ -158,7 +156,6 @@ local function run()
     station = station,
     url = url,
     title = title,
-    codec_name = codec_name,
     created_at_ms = common.now_ms(),
   }
 
@@ -178,7 +175,6 @@ local function run()
       title = "",
       url = "",
       volume = parsed.volume >= 0 and parsed.volume or common.DEFAULT_VOLUME,
-      codec_name = codec_name,
       command_id = command_id,
       command_status = "done",
       updated_at_ms = common.now_ms(),
@@ -201,7 +197,6 @@ local function run()
         title = "",
         url = "",
         volume = parsed.volume >= 0 and parsed.volume or common.DEFAULT_VOLUME,
-        codec_name = codec_name,
         command_id = command_id,
         command_status = "done",
         updated_at_ms = common.now_ms(),

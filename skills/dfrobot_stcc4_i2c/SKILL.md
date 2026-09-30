@@ -7,8 +7,7 @@
     "category": ["sensor"],
     "tags": ["dfrobot", "i2c", "co2", "sensirion", "temperature", "humidity", "air quality"],
     "peripherals": ["stcc4"],
-    "cap_groups": ["cap_lua"],
-    "manage_mode": "web"
+    "cap_groups": ["cap_lua"]
   }
 }
 ---

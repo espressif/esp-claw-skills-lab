@@ -8,8 +8,7 @@
       "category": ["sensor"],
       "tags": ["tof", "8x8", "dfrobot", "i2c", "distance"],
       "peripherals": ["matrix_lidar"],
-      "cap_groups": ["cap_lua"],
-      "manage_mode": "web"
+      "cap_groups": ["cap_lua"]
     }
 }
 ---

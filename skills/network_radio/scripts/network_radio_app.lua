@@ -1,4 +1,3 @@
-local board_manager = require("board_manager")
 local lvgl = require("lvgl")
 local common = require("radio_common")
 local thread = require("thread")
@@ -9,7 +8,6 @@ local EVENT_POLL_MS = 100
 local STATUS_REFRESH_MS = 1000
 local WAVE_REFRESH_MS = 140
 local CLOCK_REFRESH_MS = 1000
-local RADIO_FONT_PATH = "fonts/fusion-pixel-12px.ttf"
 local DEFAULT_VOLUME = common.DEFAULT_VOLUME
 local APP_BG = "#07111F"
 local CARD_BG = "#0F1E33"
@@ -71,7 +69,7 @@ local function clock_text()
 end
 
 local function load_radio_fonts()
-    local ok, font_or_err = pcall(lvgl.font_load, RADIO_FONT_PATH, {
+    local ok, font_or_err = pcall(lvgl.font_load, {
         size = 22,
         cache_size = 96,
     })
@@ -81,7 +79,7 @@ local function load_radio_fonts()
         print(TAG .. " WARN: failed to load radio font: " .. tostring(font_or_err))
     end
 
-    ok, font_or_err = pcall(lvgl.font_load, RADIO_FONT_PATH, {
+    ok, font_or_err = pcall(lvgl.font_load, {
         size = 18,
         cache_size = 128,
     })
@@ -123,7 +121,6 @@ local function start_daemon_if_needed()
     end
 
     local ok, err = thread.start(daemon_path(), {
-        codec_name = common.DEFAULT_CODEC_NAME,
     }, {
         name = common.DAEMON_JOB_NAME,
         exclusive = common.DAEMON_EXCLUSIVE,
@@ -304,7 +301,6 @@ local function send_control(action, opts)
             station = opts.station or "",
             url = opts.url or "",
             title = opts.title or "",
-            codec_name = common.DEFAULT_CODEC_NAME,
             created_at_ms = common.now_ms(),
         }
         if opts.volume ~= nil then
@@ -740,28 +736,10 @@ local function run()
     common.ensure_control_dir()
     common.ensure_queues()
 
-    local panel_handle, io_handle, width, height, panel_if =
-        board_manager.get_display_lcd_params("display_lcd")
-    if not panel_handle then
-        error("get_display_lcd_params(display_lcd) failed: " .. tostring(io_handle))
-    end
-
-    lvgl.init(panel_handle, io_handle, width, height, panel_if, {
-        buffer_lines = 10,
-        tick_ms = 5,
-        task_period_ms = 10,
-    })
+    -- LVGL acquires the display and connects touch automatically.
+    lvgl.init({ buffer_lines = 10, tick_ms = 5, task_period_ms = 10 })
+    local width, height = lvgl.screen():get_size()
     load_radio_fonts()
-
-    local touch_handle, touch_err = board_manager.get_lcd_touch_handle("lcd_touch")
-    if touch_handle then
-        local ok, err = pcall(lvgl.indev_register, "touch", touch_handle)
-        if not ok then
-            print(TAG .. " WARN: touch register failed: " .. tostring(err))
-        end
-    else
-        print(TAG .. " WARN: no touch handle: " .. tostring(touch_err))
-    end
 
     build_ui(width, height)
     apply_status(read_status() or {
@@ -796,7 +774,6 @@ local function run()
 end
 
 local ok, err = xpcall(run, debug.traceback)
-pcall(lvgl.indev_unregister, "touch")
 pcall(lvgl.deinit)
 if not ok then
     print(TAG .. " ERROR: " .. tostring(err))

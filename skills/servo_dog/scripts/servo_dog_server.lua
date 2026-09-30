@@ -9,10 +9,11 @@ local DEFAULT_APP_ID = "servo_dog"
 local DEFAULT_QUEUE = "servo_dog_cmd"
 local DEFAULT_CONFIG_DIR = "servo_dog"
 local DEFAULT_CONFIG_FILE = "config.json"
-local DEFAULT_SKILL_DIR = "servo_dog"
+local source = debug.getinfo(1, "S").source:gsub("^@", "")
+local skill_dir = assert(source:match("^(.+)/scripts/[^/]+$"), "cannot resolve servo_dog package")
 
 local function default_skill_path(...)
-    return storage.join_path(storage.get_root_dir(), "skills", DEFAULT_SKILL_DIR, ...)
+    return storage.join_path(skill_dir, ...)
 end
 
 local raw_args = type(args) == "table" and args or {}
@@ -67,7 +68,7 @@ local function safe_app_id(value)
 end
 
 local function safe_abs_path(value)
-    return type(value) == "string" and value:sub(1, 1) == "/" and not value:find("%.%.", 1, true)
+    return type(value) == "string" and value:sub(1, 1) == "/" and not value:find("..", 1, true)
 end
 
 local function parse_body(body)
@@ -99,18 +100,21 @@ local function json_error(message, status)
     }
 end
 
+local worker_started = false
+local queue_created = false
+
 local function start_worker()
-    pcall(thread.stop, "servo_dog_worker", 1000)
-    pcall(sync.queue_delete, queue_name)
     assert(sync.queue_create(queue_name, { depth = 8, item_size = 2048 }))
+    queue_created = true
 
     local ok, output = thread.start(worker_path, worker_args, {
         name = "servo_dog_worker",
         exclusive = "servo_dog_worker",
-        replace = true,
+        replace = false,
         timeout_ms = 0,
     })
     assert(ok, output)
+    worker_started = true
 end
 
 local function register_routes(app)
@@ -147,8 +151,9 @@ local function register_routes(app)
     end)
 
     app:get("/start_calibration", function(_req)
+        local ok, err = send_command({ action = "installation" })
+        if not ok then return json_error(err, 503) end
         calibration_mode = true
-        send_command({ action = "installation" })
         return {
             json = {
                 ok = true,
@@ -159,8 +164,9 @@ local function register_routes(app)
     end)
 
     app:get("/exit_calibration", function(_req)
+        local ok, err = send_command({ action = "idle" })
+        if not ok then return json_error(err, 503) end
         calibration_mode = false
-        send_command({ action = "idle" })
         return { json = { ok = true, calibration = false } }
     end)
 
@@ -205,12 +211,23 @@ local function run()
 
     print("[servo_dog] serving " .. app:url() .. " from " .. web_root)
     app:serve_forever()
-    pcall(thread.stop, "servo_dog_worker", 1000)
-    pcall(sync.queue_delete, queue_name)
     print("[servo_dog] server stopped")
 end
 
 local ok, err = xpcall(run, debug.traceback)
+-- Release only resources created by this server invocation.
+if worker_started then
+    local stopped, stop_err = thread.stop("servo_dog_worker", 3000)
+    if not stopped then
+        print("[servo_dog] WARN: worker stop failed: " .. tostring(stop_err))
+        queue_created = false
+    end
+end
+if queue_created then
+    while sync.queue_recv(queue_name, 0) do end
+    local removed, remove_err = sync.queue_delete(queue_name)
+    if not removed then print("[servo_dog] WARN: queue cleanup failed: " .. tostring(remove_err)) end
+end
 if not ok then
     print("[servo_dog] ERROR: " .. tostring(err))
     error(err)
