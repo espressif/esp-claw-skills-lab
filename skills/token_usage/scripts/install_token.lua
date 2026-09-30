@@ -2,6 +2,7 @@ local storage = require("storage")
 local event_publisher = require("event_publisher")
 local json = require("json")
 local token_config = require("token_usage_config")
+local capability = require("capability")
 
 local STARTUP_RULE_ID = "startup_run_token_usage"
 local START_NOW_RULE_ID = "install_start_token_usage"
@@ -10,36 +11,12 @@ local LETTER_RULE_ID = "schedule_run_token_usage_letter"
 local SNAPSHOT_SCHEDULE_ID = "token_usage_snapshot"
 local LETTER_SCHEDULE_ID = "token_usage_letter"
 local DASHBOARD_JOB_NAME = "token_usage"
-local DISPLAY_EXCLUSIVE = "display"
 local STOP_WAIT_MS = 3000
 
 local install_args = (type(args) == "table") and args or {}
 
 local function script_dir()
-    local src = debug.getinfo(1, "S").source or ""
-    if src:sub(1, 1) == "@" then
-        src = src:sub(2)
-    end
-    return (src:match("(.+)/[^/]+$")) or "."
-end
-
-local function normalize_path(path)
-    local parts = {}
-    for seg in string.gmatch(path, "[^/]+") do
-        if seg == ".." then
-            if #parts > 0 then
-                table.remove(parts)
-            end
-        elseif seg ~= "." and seg ~= "" then
-            parts[#parts + 1] = seg
-        end
-    end
-    local prefix = (string.sub(path, 1, 1) == "/") and "/" or ""
-    return prefix .. table.concat(parts, "/")
-end
-
-local function skill_dir()
-    return normalize_path(script_dir() .. "/..")
+    return storage.join_path(token_config.SKILL_DIR, "scripts")
 end
 
 local function fail(msg)
@@ -90,38 +67,28 @@ local function write_text_file(path, content)
     end
 end
 
-local function read_json_array(path)
-    local raw = read_text_file(path)
-    local parse_ok, value = pcall(json.decode, raw)
-    if not parse_ok or type(value) ~= "table" then
-        fail(path .. " is not a JSON array: " .. tostring(value))
-    end
-    return value
+local function call_required(name, input)
+    local ok, out, err = capability.call(name, input or {}, { source_cap = "install_token", max_output_bytes = 65536 })
+    if not ok then fail(name .. ": " .. tostring(err or out)) end
+    return out
 end
 
-local function upsert_by_id(list, item, label)
-    local found = false
-    local out = {}
-    for _, entry in ipairs(list) do
-        if type(entry) == "table" and entry.id == item.id then
-            out[#out + 1] = item
-            found = true
-        else
-            out[#out + 1] = entry
-        end
+-- Update individual entries through their owners, without rewriting shared files.
+local function upsert_entries(list_cap, add_cap, update_cap, field, entries)
+    local list = json.decode(call_required(list_cap))
+    if type(list) ~= "table" then fail(list_cap .. " returned invalid JSON") end
+    local existing = {}
+    for _, entry in ipairs(list) do existing[entry.id] = true end
+    for _, entry in ipairs(entries) do
+        call_required(existing[entry.id] and update_cap or add_cap, { [field] = json.encode(entry) })
+        if field == "rule_json" then call_required("get_router_rule", { id = entry.id }) end
+        print("[install_token] updated " .. entry.id)
     end
-    if not found then
-        out[#out + 1] = item
-        print("[install_token] " .. label .. " " .. item.id .. " appended")
-    else
-        print("[install_token] " .. label .. " " .. item.id .. " updated")
-    end
-    return out
 end
 
 local function install_soul()
     local root = storage.get_root_dir()
-    local src = storage.join_path(skill_dir(), "soul_token.md")
+    local src = storage.join_path(token_config.SKILL_DIR, "soul_token.md")
     local dst = storage.join_path(root, "memory", "soul.md")
     local content = read_text_file(src)
     write_text_file(dst, content)
@@ -145,7 +112,6 @@ local function dashboard_args()
         host = INSTALL_HOST,
         port = INSTALL_PORT,
         boot_delay_ms = 5000,
-        emote_settle_ms = 3000,
         cursor_poll_ms = 1000,
         status_poll_ms = 1000,
     }
@@ -154,14 +120,14 @@ end
 local function startup_rule()
     return {
         id = STARTUP_RULE_ID,
-        description = "Start token usage dashboard after boot tasks complete.",
+        description = "Start token usage dashboard after boot.",
         enabled = true,
-        consume_on_match = true,
+        consume_on_match = false,
         ack = "startup token usage dashboard started",
         match = {
             source_cap = "app_claw",
             event_type = "startup",
-            event_key = "startup_tasks_completed",
+            event_key = "boot_completed",
             content_type = "trigger",
         },
         actions = {
@@ -173,7 +139,7 @@ local function startup_rule()
                     async = true,
                     name = "token_usage",
                     exclusive = "display",
-                    replace = true,
+                    replace = false,
                     timeout_ms = 0,
                 },
             },
@@ -203,7 +169,7 @@ local function start_now_router_rule()
                     async = true,
                     name = "token_usage",
                     exclusive = "display",
-                    replace = true,
+                    replace = false,
                     timeout_ms = 0,
                 },
             },
@@ -229,8 +195,8 @@ local function snapshot_router_rule()
                 input = {
                     path = snapshot_script_path(),
                     args = {
-                        host = "{{event.payload.host}}",
-                        port = "{{event.payload.port}}",
+                        host = "{{event.payload.user_payload.host}}",
+                        port = "{{event.payload.user_payload.port}}",
                     },
                 },
             },
@@ -256,9 +222,9 @@ local function letter_router_rule()
                 input = {
                     path = letter_script_path(),
                     args = {
-                        language = "{{event.payload.language}}",
-                        host = "{{event.payload.host}}",
-                        port = "{{event.payload.port}}",
+                        language = "{{event.payload.user_payload.language}}",
+                        host = "{{event.payload.user_payload.host}}",
+                        port = "{{event.payload.user_payload.port}}",
                     },
                 },
             },
@@ -314,39 +280,16 @@ local function letter_schedule()
 end
 
 local function install_router_rules()
-    local root = storage.get_root_dir()
-    local rules_path = storage.join_path(root, "router_rules", "router_rules.json")
-    local rules = read_json_array(rules_path)
-
-    rules = upsert_by_id(rules, startup_rule(), "router rule")
-    rules = upsert_by_id(rules, start_now_router_rule(), "router rule")
-    rules = upsert_by_id(rules, snapshot_router_rule(), "router rule")
-    rules = upsert_by_id(rules, letter_router_rule(), "router rule")
-
-    write_text_file(rules_path, json.encode(rules))
+    upsert_entries("list_router_rules", "add_router_rule", "update_router_rule", "rule_json", {
+        startup_rule(), start_now_router_rule(), snapshot_router_rule(), letter_router_rule(),
+    })
 end
 
 local function install_schedules()
-    local root = storage.get_root_dir()
-    local schedules_path = storage.join_path(root, "scheduler", "schedules.json")
-    local schedules = read_json_array(schedules_path)
-    local snapshot = snapshot_schedule()
-    local letter = letter_schedule()
-
-    schedules = upsert_by_id(schedules, snapshot, "schedule")
-    schedules = upsert_by_id(schedules, letter, "schedule")
-
-    write_text_file(schedules_path, json.encode(schedules))
-    return snapshot, letter
+    upsert_entries("scheduler_list", "scheduler_add", "scheduler_update", "schedule_json", { snapshot_schedule(), letter_schedule() })
 end
 
-local function call_capability(name, input, ok_message, warn_message)
-    local has_capability, capability = pcall(require, "capability")
-    if not has_capability then
-        print("[install_token] WARN: capability module unavailable; reboot to apply " .. warn_message)
-        return false, nil, "capability module unavailable"
-    end
-
+local function call_capability(name, input)
     local ok, out, err = capability.call(name, input or {}, {
         source_cap = "install_token",
         max_output_bytes = 8192,
@@ -354,12 +297,6 @@ local function call_capability(name, input, ok_message, warn_message)
     if not ok then
         print("[install_token] WARN: " .. name .. " failed: " .. tostring(err or out))
         return false, out, err or out
-    end
-    if ok_message then
-        print("[install_token] " .. ok_message)
-    end
-    if out ~= nil and tostring(out) ~= "" and ok_message then
-        print("[install_token] " .. name .. " output: " .. tostring(out))
     end
     return true, out, nil
 end
@@ -430,23 +367,18 @@ end
 local RESTART_DASHBOARD = install_bool("restart_dashboard")
 local SKIP_DASHBOARD_START = install_bool("skip_dashboard_start")
 
-local function stop_display_jobs(reason)
+local function stop_dashboard(reason)
     print("[install_token] " .. reason)
-    call_capability("lua_stop_all_async_jobs", {
-        exclusive = DISPLAY_EXCLUSIVE,
-        wait_ms = STOP_WAIT_MS,
-    }, "display jobs stopped", "display jobs")
+    call_required("lua_stop_async_job", { name = DASHBOARD_JOB_NAME, wait_ms = STOP_WAIT_MS })
 end
 
 local function maybe_stop_dashboard_before_install()
-    if not dashboard_job_active() then
+    if SKIP_DASHBOARD_START or not dashboard_job_active() then
         return
     end
 
-    local _, job_args = dashboard_job_status()
-    local host_port_changed = not dashboard_host_port_match(job_args)
-    if RESTART_DASHBOARD or host_port_changed then
-        stop_display_jobs("stopping display jobs before reinstall to free Lua task memory")
+    if RESTART_DASHBOARD then
+        stop_dashboard("stopping dashboard before requested restart")
     end
 end
 
@@ -465,7 +397,7 @@ local function start_dashboard_now()
     if ok then
         print("[install_token] token_usage.lua start event queued")
     else
-        print("[install_token] WARN: failed to queue token_usage.lua start event: " .. tostring(err))
+        fail("failed to queue token_usage.lua start event: " .. tostring(err))
     end
 end
 
@@ -484,7 +416,8 @@ local function maybe_start_dashboard_after_install()
     end
 
     if active then
-        stop_display_jobs("stopping display jobs before dashboard relaunch")
+        print("[install_token] dashboard remains active; pass restart_dashboard=true to apply new host/port now")
+        return
     end
 
     start_dashboard_now()
@@ -497,17 +430,7 @@ print(string.format("[install_token] snapshot every %d hour(s), letter every min
 maybe_stop_dashboard_before_install()
 install_soul()
 install_router_rules()
-local installed_snapshot_schedule, installed_letter_schedule = install_schedules()
-call_capability("reload_router_rules", {}, "reload_router_rules ok", "router rules")
-call_capability("scheduler_reload", {}, "scheduler_reload ok", "scheduler")
-call_capability("scheduler_update", {
-    schedule_json = json.encode(installed_snapshot_schedule),
-}, "scheduler_update ok", "snapshot schedule")
-call_capability("scheduler_update", {
-    schedule_json = json.encode(installed_letter_schedule),
-}, "scheduler_update ok", "letter schedule")
-call_capability("scheduler_trigger_now", {
-    id = SNAPSHOT_SCHEDULE_ID,
-}, "snapshot bootstrap triggered", "initial snapshot")
+install_schedules()
+call_required("scheduler_trigger_now", { id = SNAPSHOT_SCHEDULE_ID })
 maybe_start_dashboard_after_install()
 print("[install_token] install complete")

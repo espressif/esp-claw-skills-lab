@@ -1,13 +1,25 @@
 -- token_usage_config.lua
 local system = require("system")
+local storage = require("storage")
 
 local M = {}
 
-M.DEFAULT_SCRIPT_PATH = "/fatfs/skills/token_usage/scripts/token_usage.lua"
+-- Resolve bundled resources independently of the package installation root.
+local source = debug.getinfo(1, "S").source:gsub("^@", "")
+M.SKILL_DIR = assert(source:match("^(.+)/scripts/[^/]+$"), "cannot resolve token_usage package")
+M.DEFAULT_SCRIPT_PATH = storage.join_path(M.SKILL_DIR, "scripts", "token_usage.lua")
+M.DATA_DIR = storage.join_path(storage.get_root_dir(), "token_usage")
+M.HISTORY_DIR = storage.join_path(M.DATA_DIR, "telemetry_history")
+
+function M.ensure_data_dir()
+    if not storage.exists(M.DATA_DIR) then
+        storage.mkdir(M.DATA_DIR)
+    end
+    return M.DATA_DIR
+end
 M.default_port = 8080
 M.memory_interval_hours = 1
 M.letter_send_minute = 0
-M.letter_cron_expr = "0 * * * *"
 M.default_letter_language = "Chinese"
 M.letter_persona_name = "ESP-Claw"
 M.PILL_TOTAL = 12

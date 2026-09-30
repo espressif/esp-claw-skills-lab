@@ -3,11 +3,7 @@
 -- --------------------------------------------------------------
 
 local audio = require("audio")
-local bm = require("board_manager")
 local common = require("radio_common")
-
-local raw_args = type(args) == "table" and args or {}
-local codec_name = type(raw_args.codec_name) == "string" and raw_args.codec_name ~= "" and raw_args.codec_name or common.DEFAULT_CODEC_NAME
 
 local output = nil
 local player = nil
@@ -17,7 +13,6 @@ local state = {
   title = "",
   url = "",
   volume = common.DEFAULT_VOLUME,
-  codec_name = codec_name,
   updated_at_ms = common.now_ms(),
 }
 
@@ -54,21 +49,15 @@ local function ensure_output(volume)
     return
   end
 
-  local codec, rate, channels, bits = bm.get_audio_codec_output_params(codec_name)
-  if not codec then
-    local message = "get_audio_codec_output_params(" .. tostring(codec_name) .. ") failed: " .. tostring(rate)
-    print("[network_radio] ERROR: " .. message)
-    error(message)
-  end
-
-  local new_output, output_err = audio.new_output({ codec, rate, channels, bits, volume = volume })
+  local new_output, output_err = audio.open_output()
   if not new_output then
-    local message = "audio.new_output failed: " .. tostring(output_err)
+    local message = "audio.open_output failed: " .. tostring(output_err)
     print("[network_radio] ERROR: " .. message)
     error(message)
   end
 
   output = new_output
+  assert(output:set_volume(volume))
   local info = output:info()
   print(string.format("[network_radio] output=%dHz/%dch/%dbit volume=%d", info.sample_rate, info.channels, info.bits, volume))
 end
@@ -104,6 +93,8 @@ local function stop_playback()
   end
 end
 
+local set_volume
+
 local function play_station(command)
   local title, url = common.resolve_station(command.station, command.url, command.title)
   local volume = common.clamp_volume(command.volume) or state.volume or common.DEFAULT_VOLUME
@@ -138,7 +129,7 @@ local function play_station(command)
   print(string.format("[network_radio] playing title=%s volume=%d url=%s", title, volume, url))
 end
 
-local function set_volume(command)
+set_volume = function(command)
   local volume = common.clamp_volume(command.volume)
   if not volume then
     error("args.volume is required for volume action")

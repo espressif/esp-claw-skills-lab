@@ -1,5 +1,6 @@
 -- token_usage_dashboard.lua
-local board_manager = require("board_manager")
+local system = require("system")
+local json = require("json")
 local lvgl = require("lvgl")
 local change_ui = require("change_ui")
 local storage = require("storage")
@@ -7,11 +8,6 @@ local delay = require("delay")
 local config = require("token_usage_config")
 local remote = require("token_usage_remote")
 local env_mod = require("token_usage_env")
-
-local touch_ok, lcd_touch = pcall(require, "lcd_touch")
-if not touch_ok then
-    lcd_touch = nil
-end
 
 local M = {}
 
@@ -33,13 +29,6 @@ function M.run(raw_args)
             state_index = -1,
             state_panel_key = "",
             usage_pct = -1,
-        },
-        touch = {
-            handle = nil,
-            tracking = false,
-            swipe_handled = false,
-            start_x = 0,
-            start_y = 0,
         },
         poll_times = {
             cursor = 0,
@@ -735,8 +724,8 @@ function M.run(raw_args)
             pcall(function()
                 ui.led.strip:clear()
                 ui.led.strip:refresh()
-                ui.led.strip:close()
             end)
+            pcall(function() ui.led.strip:close() end)
             ui.led.strip = nil
         end
         ui.led.chase_active = false
@@ -749,9 +738,9 @@ function M.run(raw_args)
             return
         end
 
-        local strip, err = led_strip.new(ctx.led_gpio, ctx.led_count)
-        if not strip then
-            print("[token_usage] led_strip init failed: " .. tostring(err))
+        local opened, strip = pcall(led_strip.new, ctx.led_gpio, ctx.led_count)
+        if not opened then
+            print("[token_usage] led_strip init failed: " .. tostring(strip))
             return
         end
 
@@ -812,9 +801,6 @@ function M.run(raw_args)
     end
 
     local function write_standing_state()
-        if not ui.skill_dir then
-            return
-        end
         local count = 0
         for i = 1, config.PILL_TOTAL do
             if ui.standing.pill_status[i] == 1 then
@@ -826,12 +812,13 @@ function M.run(raw_args)
             day_key = ui.standing.day_key or "",
             updated_at = system.date("%Y-%m-%d %H:%M:%S"),
         }
-        local path = storage.join_path(ui.skill_dir, "standing_state.json")
+        local path = storage.join_path(config.ensure_data_dir(), "standing_state.json")
         local enc_ok, encoded = pcall(json.encode, payload)
         if not enc_ok then
             return
         end
-        pcall(storage.write_file, path, encoded)
+        local saved, err = pcall(storage.write_file, path, encoded)
+        if not saved then print("[token_usage] standing state write failed: " .. tostring(err)) end
     end
 
     local function reset_standing_day(day_key)
@@ -936,61 +923,13 @@ function M.run(raw_args)
         end
     end
 
-    local function handle_touch()
-        if not ui.touch.handle or not lcd_touch then
-            return
-        end
-
-        local ok, info = pcall(lcd_touch.poll, ui.touch.handle)
-        if not ok or type(info) ~= "table" then
-            return
-        end
-
-        if info.just_pressed then
-            ui.touch.tracking = true
-            ui.touch.swipe_handled = false
-            ui.touch.start_x = info.x or 0
-            ui.touch.start_y = info.y or 0
-            return
-        end
-
-        if ui.touch.tracking and not ui.touch.swipe_handled and ui.pages then
-            local cur_x = info.x or ui.touch.start_x
-            local cur_y = info.y or ui.touch.start_y
-            local dx = cur_x - ui.touch.start_x
-            local dy = cur_y - ui.touch.start_y
-            if ui.pages:handle_swipe(dx, dy) then
-                ui.touch.swipe_handled = true
-                ui.touch.tracking = false
-                return
-            end
-        end
-
-        if info.just_released then
-            local end_x = info.x or ui.touch.start_x
-            local end_y = info.y or ui.touch.start_y
-            local dx = end_x - ui.touch.start_x
-            local dy = end_y - ui.touch.start_y
-
-            if ui.touch.tracking and not ui.touch.swipe_handled and ui.pages then
-                if ui.pages:handle_swipe(dx, dy) then
-                    ui.touch.swipe_handled = true
-                end
-            end
-
-            if ui.touch.tracking and not ui.touch.swipe_handled
-                    and ui.pages and ui.pages:is_token_page()
-                    and math.abs(dx) < 12 and math.abs(dy) < 12 then
-                confirm_standing_if_needed()
-            end
-
-            ui.touch.tracking = false
-            ui.touch.swipe_handled = false
-            return
-        end
-
-        if info.pressed then
-            ui.touch.tracking = true
+    local function add_page_controls(screen, target_page)
+        -- Current LVGL exposes widget events, not raw touch polling.
+        local next_button = lvgl.button(screen, { text = ">", x = ui.display_w - 36, y = 0, w = 36, h = 28, bg_color = config.COLOR.panel, text_color = config.COLOR.white })
+        next_button:on("clicked", function() ui.pages:switch_to(target_page) end)
+        if target_page == change_ui.PAGE_ENV then
+            local confirm = lvgl.button(screen, { text = "OK", x = ui.display_w - 40, y = ui.display_h - 30, w = 40, h = 30, bg_color = config.COLOR.panel, text_color = config.COLOR.white })
+            confirm:on("clicked", confirm_standing_if_needed)
         end
     end
 
@@ -1110,96 +1049,12 @@ function M.run(raw_args)
         draw_stand_icon()
     end
 
-    local function yield_to_lvgl(step_ms, rounds)
-        step_ms = step_ms or 30
-        rounds = rounds or 1
-        for _ = 1, rounds do
-            -- process_events(timeout) yields to the lvgl task while draining callbacks.
-            pcall(lvgl.process_events, step_ms)
-        end
-    end
-
-    local SCREEN_CREATE_MAX_ATTEMPTS = 40
-    local LVGL_SETTLE_TICKS = 8
-
-    local function try_create_screen(label, attempt)
-        yield_to_lvgl(50, 1)
-        local ok, scr = pcall(lvgl.create_screen)
-        if ok then
-            if attempt and attempt > 1 then
-                print(string.format("[token_usage] %s screen ok on attempt %d", label, attempt))
-            else
-                print(string.format("[token_usage] %s screen ok", label))
-            end
-            return scr
-        end
-        print(string.format("[token_usage] %s screen retry %d: %s",
-            label, attempt or 1, tostring(scr)))
-        return nil, scr
-    end
-
     local function tick_ui_init()
         local init = ui.init
-        if not init or init.phase == "done" then
-            return true
-        end
-
-        if init.phase == "lvgl_settle" then
-            yield_to_lvgl(50, 1)
-            init.settle_ticks = (init.settle_ticks or 0) + 1
-            if init.settle_ticks >= LVGL_SETTLE_TICKS then
-                init.phase = "create_token_screen"
-                init.screen_attempts = 0
-                print("[token_usage] creating screens...")
-            end
-            return false
-        end
-
-        if init.phase == "create_token_screen" then
-            init.screen_attempts = (init.screen_attempts or 0) + 1
-            local scr = try_create_screen("token", init.screen_attempts)
-            if not scr then
-                if init.screen_attempts >= SCREEN_CREATE_MAX_ATTEMPTS then
-                    error("token screen failed after " .. tostring(SCREEN_CREATE_MAX_ATTEMPTS) .. " attempts")
-                end
-                return false
-            end
-            init.token_screen = scr
-            init.phase = "create_env_screen"
-            init.screen_attempts = 0
-            return false
-        end
-
-        if init.phase == "create_env_screen" then
-            init.screen_attempts = (init.screen_attempts or 0) + 1
-            local scr = try_create_screen("env", init.screen_attempts)
-            if not scr then
-                if init.screen_attempts >= SCREEN_CREATE_MAX_ATTEMPTS then
-                    error("env screen failed after " .. tostring(SCREEN_CREATE_MAX_ATTEMPTS) .. " attempts")
-                end
-                return false
-            end
-            init.env_screen = scr
-            init.phase = "create_blackout_screen"
-            init.screen_attempts = 0
-            return false
-        end
-
-        if init.phase == "create_blackout_screen" then
-            init.screen_attempts = (init.screen_attempts or 0) + 1
-            local scr = try_create_screen("blackout", init.screen_attempts)
-            if not scr then
-                if init.screen_attempts >= SCREEN_CREATE_MAX_ATTEMPTS then
-                    error("blackout screen failed after " .. tostring(SCREEN_CREATE_MAX_ATTEMPTS) .. " attempts")
-                end
-                return false
-            end
-            init.blackout_screen = scr
-            init.phase = "assemble_pages"
-            return false
-        end
-
         if init.phase == "assemble_pages" then
+            init.token_screen = lvgl.create_screen()
+            init.env_screen = lvgl.create_screen()
+            init.blackout_screen = lvgl.create_screen()
             ui.pages = change_ui.create({
                 lvgl = lvgl,
                 display_w = ui.display_w,
@@ -1236,13 +1091,8 @@ function M.run(raw_args)
             update_usage_display()
             ui.pages.token_screen:load()
 
-            local touch_handle, touch_err = board_manager.get_lcd_touch_handle("lcd_touch")
-            if touch_handle and lcd_touch then
-                ui.touch.handle = touch_handle
-                pcall(lcd_touch.sync, touch_handle)
-            elseif touch_err then
-                print("[token_usage] lcd touch unavailable: " .. tostring(touch_err))
-            end
+            add_page_controls(ui.pages.token_screen, change_ui.PAGE_ENV)
+            add_page_controls(ui.pages.env_screen, change_ui.PAGE_TOKEN)
 
             ui.env_state = env_mod.init()
             pcall(env_mod.update_widgets, ui.pages, ui.env_state)
@@ -1257,49 +1107,16 @@ function M.run(raw_args)
     end
 
     local function init_runtime()
-        -- Clear any stale LVGL singleton left by a prior failed/replaced job.
-        pcall(lvgl.deinit)
-        yield_to_lvgl(50, 6)
-
-        -- display_lcd / lcd_touch are already initialized at boot (emote uses the panel).
-        -- Re-initing here races emote and can hang or crash; just resolve handles.
-        local panel_handle, io_handle, width, height, panel_if =
-            board_manager.get_display_lcd_params("display_lcd")
-        if not panel_handle then
-            error("display_lcd unavailable: " .. tostring(io_handle))
-        end
-
+        -- LVGL owns display acquisition and built-in touch input.
+        lvgl.init({ buffer_lines = 10, tick_ms = 5, task_period_ms = 20 })
+        ui.display_w, ui.display_h = lvgl.screen():get_size()
         init_led_strip()
-
-        -- Let emote finish its current frame before lvgl.init acquires display ownership.
-        local emote_settle_ms = config.as_int(raw_args.emote_settle_ms, 5000, 500, 15000)
-        if emote_settle_ms > 0 then
-            delay.delay_ms(emote_settle_ms)
-        end
-
-        ui.display_w = math.floor(tonumber(width) or 0)
-        ui.display_h = math.floor(tonumber(height) or 0)
-        if ui.display_w <= 0 or ui.display_h <= 0 then
-            error("display_lcd returned invalid size: " .. tostring(width) .. "x" .. tostring(height))
-        end
-
-        lvgl.init(panel_handle, io_handle, ui.display_w, ui.display_h, panel_if, {
-            buffer_lines = 10,
-            tick_ms = 5,
-            -- Slower lvgl task during boot reduces lock contention with screen creation.
-            task_period_ms = 20,
-        })
-
-        local script_path = config.as_string(raw_args.script_path, config.DEFAULT_SCRIPT_PATH)
-        local skill_dir = script_path:match("^(.+)/scripts/") or "/fatfs/skills/token_usage"
-        ui.skill_dir = skill_dir
-        local assets_dir = storage.join_path(skill_dir, "assets")
+        config.ensure_data_dir()
+        local assets_dir = storage.join_path(config.SKILL_DIR, "assets")
 
         ui.init = {
-            phase = "lvgl_settle",
+            phase = "assemble_pages",
             assets_dir = assets_dir,
-            settle_ticks = 0,
-            screen_attempts = 0,
         }
         print("[token_usage] lvgl ready, UI build deferred to main loop...")
     end
@@ -1319,42 +1136,19 @@ function M.run(raw_args)
             delay.delay_ms(boot_delay_ms)
         end
 
-        local ui_ok, ui_err = xpcall(init_runtime, debug.traceback)
-        if not ui_ok then
-            print("[token_usage] UI init failed, poll-only mode: " .. tostring(ui_err))
-            while true do
-                remote.poll_remote_updates(ctx, ui.remote, ui.poll_times)
-                delay.delay_ms(100)
-            end
-        end
-
+        init_runtime()
         while true do
-            local ui_ready = ui.init and ui.init.phase == "done"
-            local ui_failed = ui.init and ui.init.phase == "failed"
-            local ui_booting = ui.init and not ui_ready and not ui_failed
-
-            if ui_booting then
-                pcall(lvgl.process_events, 30)
-            else
-                lvgl.process_events(20)
-            end
-
-            if ui.init and not ui_ready and not ui_failed then
-                local ok, err = xpcall(tick_ui_init, debug.traceback)
-                if not ok then
-                    print("[token_usage] UI build failed, poll-only mode: " .. tostring(err))
-                    ui.init.phase = "failed"
-                    pcall(lvgl.deinit)
-                end
+            lvgl.process_events(20)
+            local ui_ready = ui.init.phase == "done"
+            if not ui_ready then
+                ui_ready = tick_ui_init()
             end
 
             -- Cursor status first, then refresh UI before any slow HTTP/graphics work.
             if ui_ready then
                 remote.poll_cursor_status(ctx, ui.remote, ui.poll_times)
 
-                handle_touch()
-
-                if not ui.touch.tracking then
+                do
                     local time_info = update_top_bar()
                     if ui.pages and ui.pages:is_token_page() then
                         update_state_panel()
@@ -1370,8 +1164,6 @@ function M.run(raw_args)
                 end
 
                 remote.poll_background_updates(ctx, ui.remote, ui.poll_times)
-            elseif ui_failed then
-                remote.poll_remote_updates(ctx, ui.remote, ui.poll_times)
             end
         end
     end

@@ -9,30 +9,7 @@ local HISTORY_LOOKBACK_HOURS = 24
 
 local raw_args = type(args) == "table" and args or {}
 
-local function script_dir()
-    local src = debug.getinfo(1, "S").source or ""
-    if src:sub(1, 1) == "@" then
-        src = src:sub(2)
-    end
-    return (src:match("(.+)/[^/]+$")) or "."
-end
-
-local function normalize_path(path)
-    local parts = {}
-    for seg in string.gmatch(path, "[^/]+") do
-        if seg == ".." then
-            if #parts > 0 then
-                table.remove(parts)
-            end
-        elseif seg ~= "." and seg ~= "" then
-            parts[#parts + 1] = seg
-        end
-    end
-    local prefix = (string.sub(path, 1, 1) == "/") and "/" or ""
-    return prefix .. table.concat(parts, "/")
-end
-
-local HISTORY_DIR = normalize_path(script_dir() .. "/../telemetry_history")
+local HISTORY_DIR = config.HISTORY_DIR
 
 local function is_leap_year(y)
     return (y % 4 == 0 and y % 100 ~= 0) or (y % 400 == 0)
@@ -650,8 +627,7 @@ if current_minute ~= LETTER_SEND_MINUTE then
 end
 
 -- Dedup: track last sent hour key. Send only once per hour.
-local SENT_TRACKER_DIR = normalize_path(script_dir() .. "/../.letter_tracker")
-pcall(storage.mkdir, SENT_TRACKER_DIR)
+local SENT_TRACKER_DIR = config.ensure_data_dir()
 local tracker_path = storage.join_path(SENT_TRACKER_DIR, "last_sent.txt")
 local current_hour_key = system.date("%Y-%m-%dT%H") or "unknown"
 local last_sent_hour = nil
