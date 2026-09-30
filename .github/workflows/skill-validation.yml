@@ -28,8 +28,17 @@ jobs:
       - name: Check formatting with oxfmt
         run: pnpm exec oxfmt --check
 
-      - name: Validate skills
-        run: pnpm validate-skills
+      - name: Validate Skills and Apps
+        run: pnpm validate-packages
+
+      - name: Test package contracts
+        run: pnpm test
+
+      - name: Install Lua for App contract tests
+        run: sudo apt-get update && sudo apt-get install -y lua5.4
+
+      - name: Test App Lua APIs and cleanup
+        run: lua5.4 tests/apps.lua
 
       - name: Try Build
         run: pnpm build

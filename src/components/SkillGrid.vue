@@ -7,9 +7,9 @@ defineProps<{ skills: SkillData[] }>()
 
 <template>
   <div class="skill-grid">
-    <SkillCard v-for="skill in skills" :key="skill.id" :skill="skill" />
+    <SkillCard v-for="skill in skills" :key="skill.key" :skill="skill" />
     <div v-if="skills.length === 0" class="empty-state">
-      <p>No skills found.</p>
+      <p>{{ $t('package.empty') }}</p>
     </div>
   </div>
 </template>

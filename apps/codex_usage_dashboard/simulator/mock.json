@@ -1,0 +1,16 @@
+{
+  "args": {
+    "url": "https://demo.invalid/codex",
+    "demo": true
+  },
+  "capability": {
+    "http_request": [
+      {
+        "method": "GET",
+        "url": "https://demo.invalid/codex",
+        "status": 200,
+        "body_file": "simulator/usage.json"
+      }
+    ]
+  }
+}

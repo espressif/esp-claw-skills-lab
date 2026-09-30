@@ -25,10 +25,10 @@ watch(
 )
 
 const displayedSkills = computed(() => {
-  if (store.searchQuery) {
-    return results.value
-  }
-  return store.filteredSkills
+  const entries = store.searchQuery ? results.value : store.filteredSkills
+  return store.activeKind === 'all'
+    ? entries
+    : entries.filter((entry) => entry.kind === store.activeKind)
 })
 </script>
 

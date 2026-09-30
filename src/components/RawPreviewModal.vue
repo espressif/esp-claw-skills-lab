@@ -5,7 +5,7 @@ import { X, Download } from '@lucide/vue'
 import { FILE_EXTENSION_LANGUAGE_MAP, highlightCode } from '@/utils/highlight'
 
 const props = defineProps<{
-  skillId: string
+  rawPath: string
   filePath: string
 }>()
 const emit = defineEmits<{ close: [] }>()
@@ -18,7 +18,7 @@ const isBinary = ref(false)
 let originalBodyOverflow = ''
 let originalBodyPaddingRight = ''
 
-const fileUrl = computed(() => `/raw/${props.skillId}/${props.filePath}`)
+const fileUrl = computed(() => `${props.rawPath}/${props.filePath}`)
 
 const PREVIEWABLE_EXTENSIONS = Object.keys(FILE_EXTENSION_LANGUAGE_MAP)
 

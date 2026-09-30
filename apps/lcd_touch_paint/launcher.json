@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "id": "lcd_touch_paint",
+  "entry": "scripts/lcd_touch_paint.lua",
+  "display_name": "Screen Paint",
+  "icon": "assets/icon.jpg",
+  "args": {},
+  "order": 12,
+  "visible": true,
+  "catalog": {
+    "description": "选择颜色和笔刷后拖动绘画；CLEAR 清空画布，右上角 × 返回 Launcher，支持小屏工具栏。",
+    "author": "ESP-Claw contributor",
+    "simulator": true,
+    "category": [
+      "utility",
+      "ui"
+    ],
+    "tags": [
+      "paint",
+      "drawing",
+      "touch",
+      "demo"
+    ],
+    "peripherals": [
+      "display"
+    ]
+  }
+}

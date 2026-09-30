@@ -1,18 +1,21 @@
 import hljs from 'highlight.js/lib/core'
 import markdown from 'highlight.js/lib/languages/markdown'
 import lua from 'highlight.js/lib/languages/lua'
+import json from 'highlight.js/lib/languages/json'
 import python from 'highlight.js/lib/languages/python'
 
 hljs.registerLanguage('markdown', markdown)
 hljs.registerLanguage('lua', lua)
+hljs.registerLanguage('json', json)
 hljs.registerLanguage('python', python)
 
-export type SupportedHighlightLanguage = 'markdown' | 'lua' | 'python'
+export type SupportedHighlightLanguage = 'markdown' | 'lua' | 'python' | 'json'
 
 export const FILE_EXTENSION_LANGUAGE_MAP: Record<string, SupportedHighlightLanguage> = {
   '.md': 'markdown',
   '.markdown': 'markdown',
   '.lua': 'lua',
+  '.json': 'json',
   '.py': 'python',
 }
 
@@ -32,6 +35,7 @@ export function normalizeHighlightLanguage(value?: string): SupportedHighlightLa
   if (normalized === 'md') return 'markdown'
   if (normalized === 'markdown') return 'markdown'
   if (normalized === 'lua') return 'lua'
+  if (normalized === 'json') return 'json'
   if (normalized === 'py' || normalized === 'python') return 'python'
 
   return null
