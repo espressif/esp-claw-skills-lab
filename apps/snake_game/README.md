@@ -1,9 +1,17 @@
 # Snake
 
-滑动开始并控制方向；PAUSE / RESUME 暂停或继续，失败后滑动重开。
+薄荷绿小蛇、橙色果实和深色棋盘。顶部显示本局得分与本次运行的最高分；右侧按钮用于暂停／继续和退出。
 
-从设备 Launcher 启动。触摸屏；扬声器可选。退出可使用设备 Launcher 的返回操作。
+- 轻触棋盘或滑动开始；游戏中滑动转向，不能直接掉头。
+- 暂停后轻触棋盘或继续按钮恢复；结束后轻触或滑动重开。
+- 吃到果实后加分并逐渐加速；撞墙或碰到身体结束，填满棋盘获胜。
 
-配置写在 `launcher.json.args`，默认无需修改。`grid_size` 调整网格，`target_size` 调整舞台大小，`run_time_ms` 控制运行时长（毫秒，`0` 持续运行）。
+从设备 Launcher 启动，需要至少 160×160 的触摸屏，扬声器可选。支持浏览器模拟试玩，浏览器中无声。
 
-已开放浏览器模拟入口；音频和传感器效果以真机为准，本次 API 迁移尚未运行验证。
+`launcher.json.args` 可设置 `grid_size`（短边格数，默认 15，范围 12–30）、`target_size`（棋盘最大边长，默认随屏幕铺开）和 `run_time_ms`（运行毫秒数，`0` 持续运行）。格子保持正方形，长边格数随屏幕比例调整。
+
+界面使用当前 `display` API 和 `display.load_font()`。字体按需加载，退出时释放；静止界面不持续重绘。`assets/ui-*.dfn` 是 Lato Bold 的 ASCII 位图字体，许可见 `assets/FONT-LICENSE.txt`。需要重新生成时，在安装 Pillow 的 Python 环境运行：
+
+```sh
+python3 apps/snake_game/tools/build_fonts.py /path/to/Lato-Bold.ttf
+```
