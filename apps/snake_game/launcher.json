@@ -9,7 +9,7 @@
   "order": 20,
   "visible": true,
   "catalog": {
-    "description": "Play a touch-swipe Snake game with a responsive blue-white cyber interface, data-link boot animation, evolving color trail, and sound effects.",
+    "description": "Play a touch-controlled Snake game with a mint-green snake, orange fruit, a responsive dark board, and optional sound effects.",
     "category": [
       "game",
       "ui"
@@ -19,7 +19,6 @@
       "arcade",
       "touch",
       "swipe",
-      "cyber",
       "sound"
     ],
     "peripherals": [

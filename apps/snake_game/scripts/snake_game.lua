@@ -1,121 +1,43 @@
 local display = require("display")
-local canvas
--- Follow one contact by ID and preserve its last position on release.
-local touch_id, touch_x, touch_y = nil, 0, 0
-local function poll_touch_snapshot()
-    local point
-    local points = canvas:touch().points
-    for _, candidate in ipairs(points) do
-        if touch_id == nil or candidate.id == touch_id then point = candidate; break end
-    end
-    local was_pressed = touch_id ~= nil
-    if point then touch_id, touch_x, touch_y = point.id, point.x, point.y else touch_id = nil end
-    return { pressed = point ~= nil, just_pressed = point ~= nil and not was_pressed,
-        just_released = point == nil and was_pressed, x = touch_x, y = touch_y }
-end
--- Keep alignment local; the display API draws text at an explicit origin.
--- Rasterize elliptical food decorations with horizontal spans.
-local function fill_ellipse(cx, cy, rx, ry, color)
-    rx, ry = math.floor(rx), math.floor(ry)
-    if rx < 1 or ry < 1 then return end
-    for dy = -ry, ry do
-        local dx = math.floor(rx * math.sqrt(math.max(0, 1 - dy * dy / (ry * ry))))
-        canvas:fill_rect(math.floor(cx) - dx, math.floor(cy) + dy, dx * 2 + 1, 1, color)
-    end
-end
-
-local function aligned_text(x, y, w, h, text, opts)
-    opts = opts or {}
-    opts.font_size = math.max(8, math.min(64, math.floor(opts.font_size or 24)))
-    if opts.bg then canvas:fill_rect(math.floor(x), math.floor(y), math.floor(w), math.floor(h), opts.bg) end
-    local tw, th = canvas:measure_text(text, opts)
-    if opts.align == "center" then x = x + (w - tw) // 2 elseif opts.align == "right" then x = x + w - tw end
-    if opts.valign == "middle" then y = y + (h - th) // 2 elseif opts.valign == "bottom" then y = y + h - th end
-    canvas:text(math.floor(x), math.floor(y), text, opts)
-end
-
 local delay = require("delay")
-local system_ok, system = pcall(require, "system")
+local system = require("system")
 local audio_ok, audio = pcall(require, "audio")
-
 local a = type(args) == "table" and args or {}
 
+local function clamp(v, lo, hi) return math.max(lo, math.min(hi, v)) end
 local function int_arg(name, default)
     local value = a[name]
-    if type(value) == "number" then
-        return math.floor(value)
-    end
-    return default
+    return type(value) == "number" and value == value and math.abs(value) < math.huge and math.floor(value) or default
 end
-
-local function now_ms()
-    if system_ok and system and system.millis then
-        return system.millis()
-    end
-    return math.floor(os.clock() * 1000)
-end
-
-local function rgb(r, g, b)
-    return { r = math.floor(r), g = math.floor(g), b = math.floor(b) }
-end
-
-local function clamp(v, lo, hi)
-    if v < lo then return lo end
-    if v > hi then return hi end
-    return v
-end
-
-local function lerp(a0, b0, t)
-    return a0 + (b0 - a0) * t
-end
-
-local function mix_color(a0, b0, t)
-    return rgb(lerp(a0.r, b0.r, t), lerp(a0.g, b0.g, t), lerp(a0.b, b0.b, t))
-end
+local function now_ms() return system.millis() end
 
 local RUN_TIME_MS = math.max(0, int_arg("run_time_ms", 0))
+local GRID_N = clamp(int_arg("grid_size", 15), 12, 30)
 local TARGET_SIZE = int_arg("target_size", 0)
 if TARGET_SIZE > 0 then TARGET_SIZE = clamp(TARGET_SIZE, 160, 1600) end
-local GRID_N = clamp(int_arg("grid_size", 15), 12, 30)
-local FRAME_MS = 16
-local START_STEP_MS = 300
-local MIN_STEP_MS = 140
-local SOUND_VOLUME = 84
-local UAC_FLUSH_PCM_BYTES = 4000
-
+local START_STEP_MS, MIN_STEP_MS, FRAME_MS = 300, 140, 16
+local SOUND_VOLUME, UAC_FLUSH_PCM_BYTES = 84, 4000
 local OUTPUT_SAMPLE_RATE, output_channels = 16000, 1
-local opened, open_err = pcall(display.open)
-if not opened then error("display.open failed: " .. tostring(open_err)) end
-canvas = open_err
-local width, height = canvas:info().width, canvas:info().height
-local screen_ready = true
-local audio_output = nil
-local previous_volume
-local sfx = {}
-local pending_sfx = nil
+local assets = assert(debug.getinfo(1, "S").source:match("^@(.*)/scripts/[^/]+$"), "cannot resolve Snake path") .. "/assets/"
+local canvas = display.open()
+local info = canvas:info()
+local width, height = info.width, info.height
+local audio_output, previous_volume, pending_sfx
+local sfx, fonts = {}, {}
+local font_sizes = {12, 18, 24, 36, 48}
 
 local function cleanup()
     if audio_output then
         if previous_volume then pcall(audio_output.set_volume, audio_output, previous_volume) end
         pcall(audio_output.close, audio_output)
-        audio_output = nil
     end
-    if screen_ready then
-
-        if canvas then canvas:close(); canvas = nil end
-        screen_ready = false
-    end
+    for _, font in pairs(fonts) do font:close() end
+    canvas:close()
 end
 
-if width <= 0 or height <= 0 then
-    print("[snake_game] ERROR: invalid display size")
-    cleanup()
-    return
-end
-
-if not canvas:info().touch_available then
-    cleanup()
-    error("built-in touch is unavailable")
+if width < 160 or height < 160 or not info.touch_available then
+    canvas:close()
+    error("[snake_game] touch display of at least 160x160 required")
 end
 
 local function build_tone(freq_hz, duration_ms, amp)
@@ -149,7 +71,7 @@ local function build_tone(freq_hz, duration_ms, amp)
 end
 
 local function init_audio()
-    if not audio_ok then
+    if not audio_ok or type(audio.open_output) ~= "function" then
         print("[snake_game] WARN: audio unavailable")
         return
     end
@@ -190,113 +112,34 @@ local function drain_sfx()
     end
 end
 
-init_audio()
 
-local BG = rgb(2, 8, 20)
-local BG_STAR = rgb(22, 62, 104)
-local PANEL = rgb(5, 18, 38)
-local PANEL_ALT = rgb(7, 25, 50)
-local BOARD_BG = rgb(3, 14, 31)
-local GRID_LINE = rgb(12, 43, 72)
-local BORDER = rgb(32, 111, 172)
-local BORDER_HI = rgb(102, 224, 255)
-local TEXT = rgb(238, 251, 255)
-local SUBTEXT = rgb(116, 178, 211)
-local CYAN = rgb(75, 218, 255)
-local CYAN_DIM = rgb(19, 92, 137)
-local WHITE_BLUE = rgb(190, 239, 255)
-local SHADOW = rgb(1, 4, 12)
-
-local BODY_PALETTE = {
-    rgb(89, 224, 255),
-    rgb(92, 157, 255),
-    rgb(139, 112, 255),
-    rgb(226, 96, 241),
-    rgb(255, 102, 158),
-    rgb(255, 183, 84),
-    rgb(128, 241, 191),
-}
-
-local short_side = math.min(width, height)
-local pad = math.max(6, math.floor(short_side * 0.025))
-local gap = math.max(8, math.floor(short_side * 0.025))
-local landscape = width >= 560 and width / height >= 1.25
-local board_x, board_y, board_size, cell
-local hud_x, hud_y, hud_w, hud_h
-
-if landscape then
-    hud_w = clamp(math.floor(width * 0.27), 180, math.floor(width * 0.34))
-    hud_x = width - pad - hud_w
-    hud_y = pad
-    hud_h = height - pad * 2
-    local available_w = hud_x - gap - pad
-    local available_h = height - pad * 2
-    cell = math.max(4, math.floor(math.min(available_w, available_h) / GRID_N))
-    if TARGET_SIZE > 0 then cell = math.min(cell, math.floor(TARGET_SIZE / GRID_N)) end
-    board_size = cell * GRID_N
-    board_x = pad + math.floor((available_w - board_size) / 2)
-    board_y = pad + math.floor((available_h - board_size) / 2)
-else
-    hud_x = pad
-    hud_y = pad
-    hud_w = width - pad * 2
-    hud_h = clamp(math.floor(height * 0.18), 58, 112)
-    local available_w = width - pad * 2
-    local available_h = height - hud_h - gap - pad * 2
-    cell = math.max(4, math.floor(math.min(available_w, available_h) / GRID_N))
-    if TARGET_SIZE > 0 then cell = math.min(cell, math.floor(TARGET_SIZE / GRID_N)) end
-    board_size = cell * GRID_N
-    board_x = pad + math.floor((available_w - board_size) / 2)
-    board_y = hud_y + hud_h + gap + math.floor((available_h - board_size) / 2)
+-- One compact HUD leaves the rest of the screen for the board.
+local C = { bg = "#101D22", board = "#182E32", rim = "#30494D", dot = "#243D40",
+    text = "#EFF8F3", muted = "#94AAA9", mint = "#7CE6AC", shade = "#389D79",
+    shine = "#B9F6CC", orange = "#FFA24B", orange_dark = "#CA683A", shadow = "#0B171B" }
+local scale = clamp(math.min(width, height) / 240, 0.8, 2)
+local function px(v) return math.floor(v * scale + 0.5) end
+local pad, header, footer = px(10), px(42), px(22)
+local available_w, available_h = width - pad * 2 - 8, height - header - footer - 8
+if TARGET_SIZE > 0 then
+    available_w, available_h = math.min(available_w, TARGET_SIZE), math.min(available_h, TARGET_SIZE)
 end
-
-local swipe_threshold = clamp(math.floor(short_side * 0.05), 20, 36)
-local title_font = clamp(math.floor(short_side * 0.075), 22, 40)
-local stat_font = clamp(math.floor(short_side * 0.042), 14, 24)
-local small_font = clamp(math.floor(short_side * 0.027), 10, 15)
-local pause_h = landscape and clamp(math.floor(hud_h * 0.09), 34, 44) or math.max(30, hud_h - 16)
-local pause_w = landscape and hud_w or clamp(math.floor(hud_w * 0.18), 72, 112)
-local pause_x = landscape and hud_x or hud_x + hud_w - pause_w - 8
-local pause_y = hud_y + 8
-if landscape then
-    local cards_y = hud_y + title_font + small_font + 18
-    local card_gap = math.max(5, math.floor(hud_h * 0.014))
-    local card_h = clamp(math.floor(hud_h * 0.115), 38, 58)
-    local status_y = cards_y + (card_h + card_gap) * 3 + math.max(8, gap)
-    pause_y = math.min(status_y + small_font * 2 + 12, hud_y + hud_h - pause_h)
-end
-
-local snake = {}
-local food = { x = 1, y = 1 }
-local dir = "right"
-local pending_dir = "right"
-local score = 0
-local best = 0
-local phase = "ready"
-local won = false
-local touch_down = nil
-local last_step_ms = 0
-local step_ms = START_STEP_MS
-
-math.randomseed((os.time() or 1) + width * 13 + height * 29 + now_ms())
-
-local DIRS = {
-    up = { dx = 0, dy = -1 },
-    down = { dx = 0, dy = 1 },
-    left = { dx = -1, dy = 0 },
-    right = { dx = 1, dy = 0 },
-}
-
-local OPPOSITE = {
-    up = "down",
-    down = "up",
-    left = "right",
-    right = "left",
-}
-
-local function cell_center(x, y)
-    return board_x + math.floor((x - 0.5) * cell), board_y + math.floor((y - 0.5) * cell)
-end
+local cell = math.max(2, math.floor(math.min(available_w, available_h) / GRID_N))
+local cols, rows = math.floor(available_w / cell), math.floor(available_h / cell)
+local board_w, board_h = cols * cell, rows * cell
+local board_x, board_y = (width - board_w) // 2, header + (height - header - footer - board_h) // 2
+local button = px(30)
+local exit_x, pause_x = width - pad - button, width - pad - button * 2 - px(6)
+local button_y = (header - button) // 2
+local swipe_threshold = math.max(12, px(16))
+local snake, food = {}, { x = 1, y = 1 }
+local dir, pending_dir = "right", "right"
+local score, best, phase, won = 0, 0, "ready", false
+local touch_down, touch_id
+local last_step_ms, step_ms = 0, START_STEP_MS
+local DIRS = { up = { dx = 0, dy = -1 }, down = { dx = 0, dy = 1 }, left = { dx = -1, dy = 0 }, right = { dx = 1, dy = 0 } }
+local OPPOSITE = { up = "down", down = "up", left = "right", right = "left" }
+math.randomseed(os.time() + now_ms())
 
 local function occupies(x, y, max_index)
     local last = max_index or #snake
@@ -307,18 +150,16 @@ local function occupies(x, y, max_index)
 end
 
 local function place_food()
-    local free = {}
-    for y = 1, GRID_N do
-        for x = 1, GRID_N do
-            if not occupies(x, y) then free[#free + 1] = { x = x, y = y } end
+    local free = 0
+    for y = 1, rows do
+        for x = 1, cols do
+            if not occupies(x, y) then
+                free = free + 1
+                if math.random(free) == 1 then food = { x = x, y = y } end
+            end
         end
     end
-    if #free == 0 then
-        won = true
-        phase = "game_over"
-        return
-    end
-    food = free[math.random(1, #free)]
+    if free == 0 then won, phase = true, "game_over" end
 end
 
 local function update_speed()
@@ -328,8 +169,8 @@ end
 local function reset_game(start_dir)
     local next_dir = start_dir or "right"
     local delta = DIRS[next_dir]
-    local cx = math.floor(GRID_N / 2) + 1
-    local cy = math.floor(GRID_N / 2) + 1
+    local cx = math.floor(cols / 2) + 1
+    local cy = math.floor(rows / 2) + 1
     snake = {
         { x = cx, y = cy },
         { x = cx - delta.dx, y = cy - delta.dy },
@@ -340,7 +181,6 @@ local function reset_game(start_dir)
     score = 0
     won = false
     phase = start_dir and "playing" or "ready"
-    touch_down = nil
     update_speed()
     place_food()
     last_step_ms = now_ms()
@@ -365,7 +205,7 @@ local function step_game()
     local ny = head.y + delta.dy
     local eating = nx == food.x and ny == food.y
 
-    if nx < 1 or nx > GRID_N or ny < 1 or ny > GRID_N then
+    if nx < 1 or nx > cols or ny < 1 or ny > rows then
         phase = "game_over"
         request_sfx("crash")
         return { game_over = true }
@@ -391,332 +231,211 @@ local function step_game()
     return { moved = true, eating = eating }
 end
 
-local function draw_background()
-    canvas:fill_rect(0, 0, canvas:info().width, canvas:info().height, BG)
-    for i = 1, 30 do
-        local x = (i * 83 + 17) % width
-        local y = (i * 47 + 29) % height
-        canvas:fill_rect(x, y, i % 5 == 0 and 2 or 1, i % 5 == 0 and 2 or 1, BG_STAR)
+-- Text is measured, never wrapped or painted over rounded corners.
+local function text(x, y, w, h, value, size, color, centered)
+    value = tostring(value)
+    local opts = { color = color }
+    local tw, th
+    for i = #font_sizes, 1, -1 do
+        local size_px = font_sizes[i]
+        if size_px <= px(size) + 2 or i == 1 then
+            if not fonts[size_px] then fonts[size_px] = display.load_font(assets .. "ui-" .. size_px .. ".dfn") end
+            opts.font = fonts[size_px]
+            tw, th = canvas:measure_text(value, opts)
+            if (tw <= w and th <= h) or i == 1 then break end
+        end
     end
+    canvas:text(math.floor(x + (centered and (w - tw) / 2 or 0)), math.floor(y + (h - th) / 2), value, opts)
 end
 
-local function draw_stat_card(x, y, w, h, label, value, accent)
-    local radius = math.max(4, math.floor(h * 0.12))
-    canvas:fill_round_rect(x, y, w, h, radius, PANEL_ALT)
-    canvas:stroke_round_rect(x, y, w, h, radius, accent)
-    local label_w = math.floor(w * 0.52)
-    aligned_text(x + 10, y, label_w - 10, h, label, {
-        color = SUBTEXT, font_size = small_font, align = "left", valign = "middle", bg = PANEL_ALT,
-    })
-    aligned_text(x + label_w, y, w - label_w - 10, h, tostring(value), {
-        color = accent, font_size = stat_font, align = "right", valign = "middle", bg = PANEL_ALT,
-    })
-end
-
-local function draw_pause_button()
-    local active = phase == "playing" or phase == "paused"
-    local color = active and CYAN or CYAN_DIM
-    local label = phase == "paused" and "RESUME" or "PAUSE"
-    canvas:fill_round_rect(pause_x, pause_y, pause_w, pause_h, 6, PANEL_ALT)
-    canvas:stroke_round_rect(pause_x, pause_y, pause_w, pause_h, 6, color)
-    aligned_text(pause_x, pause_y, pause_w, pause_h, label, {
-        color = color, font_size = small_font, align = "center", valign = "middle", bg = PANEL_ALT,
-    })
+local function inside(x, y, bx, by, bw, bh)
+    return x >= bx and x < bx + bw and y >= by and y < by + bh
 end
 
 local function draw_hud()
-    if landscape then
-        canvas:fill_rect(hud_x, hud_y, hud_w, hud_h, BG)
-        aligned_text(hud_x, hud_y, hud_w, title_font + 8, "SNAKE", {
-            color = TEXT, font_size = title_font, align = "center", valign = "middle", bg = BG,
-        })
-        aligned_text(hud_x, hud_y + title_font + 2, hud_w, small_font + 8, "DATA STREAM", {
-            color = CYAN, font_size = small_font, align = "center", valign = "middle", bg = BG,
-        })
-
-        local cards_y = hud_y + title_font + small_font + 18
-        local card_gap = math.max(5, math.floor(hud_h * 0.014))
-        local card_h = clamp(math.floor(hud_h * 0.115), 38, 58)
-        draw_stat_card(hud_x, cards_y, hud_w, card_h, "SCORE", score, CYAN)
-        draw_stat_card(hud_x, cards_y + card_h + card_gap, hud_w, card_h, "BEST", best, WHITE_BLUE)
-        draw_stat_card(hud_x, cards_y + (card_h + card_gap) * 2, hud_w, card_h,
-            "LEVEL", 1 + math.floor(score / 5), CYAN)
-        local status_y = cards_y + (card_h + card_gap) * 3 + math.max(8, gap)
-        canvas:line(hud_x + 8, status_y, hud_x + hud_w - 8, status_y, CYAN_DIM)
-        aligned_text(hud_x, status_y + 5, hud_w, small_font * 2, "SWIPE TO STEER", {
-            color = SUBTEXT, font_size = small_font, align = "center", valign = "middle", bg = BG,
-        })
-        draw_pause_button()
+    canvas:fill_rect(0, 0, width, header, C.bg)
+    local score_x = pad
+    if width >= px(275) then
+        text(pad, 0, px(64), header, "SNAKE", 18, C.text)
+        score_x = pad + px(72)
+    end
+    local stats_w = pause_x - score_x - px(8)
+    text(score_x, 0, stats_w * 0.44, header, string.format("%02d", score), 24, C.mint)
+    local best_x, best_w = score_x + stats_w * 0.46, stats_w * 0.54
+    if best_w < 60 then
+        text(best_x, 0, best_w, header // 2, "BEST", 12, C.muted, true)
+        text(best_x, header // 2, best_w, header - header // 2, best, 12, C.muted, true)
     else
-        canvas:fill_round_rect(hud_x, hud_y, hud_w, hud_h, 7, PANEL)
-        canvas:stroke_round_rect(hud_x, hud_y, hud_w, hud_h, 7, BORDER)
-        local title_w = math.floor(hud_w * 0.25)
-        aligned_text(hud_x + 6, hud_y, title_w, hud_h, "SNAKE", {
-            color = CYAN, font_size = title_font, align = "left", valign = "middle", bg = PANEL,
-        })
-        local stats_x = hud_x + title_w
-        local stats_w = pause_x - stats_x - 6
-        local score_w = math.floor(stats_w * 0.38)
-        local best_w = math.floor(stats_w * 0.36)
-        local level_w = stats_w - score_w - best_w
-        aligned_text(stats_x, hud_y, score_w, hud_h, "SCORE " .. tostring(score), {
-            color = TEXT, font_size = small_font, align = "left", valign = "middle", bg = PANEL,
-        })
-        aligned_text(stats_x + score_w, hud_y, best_w, hud_h, "BEST " .. tostring(best), {
-            color = TEXT, font_size = small_font, align = "left", valign = "middle", bg = PANEL,
-        })
-        aligned_text(stats_x + score_w + best_w, hud_y, level_w, hud_h,
-            "LV " .. tostring(1 + math.floor(score / 5)), {
-            color = CYAN, font_size = small_font, align = "right", valign = "middle", bg = PANEL,
-        })
-        draw_pause_button()
+        text(best_x, 0, best_w, header, "BEST " .. best, 12, C.muted)
     end
-end
-
-local function draw_board_shell()
-    local radius = math.max(5, math.floor(cell * 0.35))
-    canvas:fill_round_rect(board_x + 4, board_y + 5, board_size, board_size, radius, SHADOW)
-    canvas:fill_round_rect(board_x, board_y, board_size, board_size, radius, BOARD_BG)
-    canvas:stroke_round_rect(board_x, board_y, board_size, board_size, radius, BORDER_HI)
-    canvas:stroke_round_rect(board_x + 2, board_y + 2, board_size - 4, board_size - 4, radius, BORDER)
-end
-
-local function draw_board_base()
-    draw_board_shell()
-    for i = 0, GRID_N do
-        local p = i * cell
-        canvas:line(board_x + p, board_y, board_x + p, board_y + board_size, GRID_LINE)
-        canvas:line(board_x, board_y + p, board_x + board_size, board_y + p, GRID_LINE)
-    end
-end
-
-local function body_color(index)
-    local unlocked = clamp(1 + (#snake - 3), 1, #BODY_PALETTE)
-    if #snake <= 1 or unlocked == 1 then return BODY_PALETTE[1] end
-    local scaled = (index - 1) / (#snake - 1) * (unlocked - 1)
-    local left = math.floor(scaled) + 1
-    local right = math.min(unlocked, left + 1)
-    return mix_color(BODY_PALETTE[left], BODY_PALETTE[right], scaled - math.floor(scaled))
-end
-
-local function body_radius(index)
-    local base = math.max(3, math.floor(cell * 0.36))
-    local from_tail = #snake - index
-    if from_tail >= 2 then return base end
-    return math.max(2, math.floor(base * (0.6 + from_tail * 0.2)))
-end
-
-local function draw_link(a0, b0, radius, color, ox, oy)
-    local ax, ay = cell_center(a0.x, a0.y)
-    local bx, by = cell_center(b0.x, b0.y)
-    ax, ay, bx, by = ax + ox, ay + oy, bx + ox, by + oy
-    if ax == bx then
-        canvas:fill_rect(ax - radius, math.min(ay, by), radius * 2 + 1, math.abs(by - ay) + 1, color)
+    for _, x in ipairs({pause_x, exit_x}) do canvas:fill_round_rect(x, button_y, button, button, px(8), C.rim) end
+    local cx, cy, r = pause_x + button // 2, button_y + button // 2, px(5)
+    local color = (phase == "playing" or phase == "paused") and C.text or C.muted
+    if phase == "paused" then
+        canvas:fill_triangle(cx - r + 1, cy - r - 1, cx - r + 1, cy + r + 1, cx + r + 2, cy, color)
     else
-        canvas:fill_rect(math.min(ax, bx), ay - radius, math.abs(bx - ax) + 1, radius * 2 + 1, color)
+        canvas:fill_rect(cx - r, cy - r, px(3), r * 2, color)
+        canvas:fill_rect(cx + r - px(3), cy - r, px(3), r * 2, color)
     end
+    cx = exit_x + button // 2
+    canvas:line(cx - r, cy - r, cx + r, cy + r, C.text)
+    canvas:line(cx + r, cy - r, cx - r, cy + r, C.text)
 end
 
-local function draw_snake_body()
-    for i = 1, #snake - 1 do
-        local radius = math.min(body_radius(i), body_radius(i + 1)) + 2
-        draw_link(snake[i], snake[i + 1], radius, SHADOW, 2, 3)
-    end
-    for i = #snake, 2, -1 do
-        local x, y = cell_center(snake[i].x, snake[i].y)
-        canvas:fill_circle(x + 2, y + 3, body_radius(i) + 2, SHADOW)
-    end
-
-    for i = 1, #snake - 1 do
-        local radius = math.min(body_radius(i), body_radius(i + 1))
-        draw_link(snake[i], snake[i + 1], radius, body_color(i + 0.5), 0, 0)
-    end
-    for i = #snake, 2, -1 do
-        local x, y = cell_center(snake[i].x, snake[i].y)
-        canvas:fill_circle(x, y, body_radius(i), body_color(i))
-    end
+local function cell_origin(point)
+    return board_x + (point.x - 1) * cell, board_y + (point.y - 1) * cell
 end
 
-local function local_point(cx, cy, forward, side, f, s)
-    return math.floor(cx + forward.dx * f + side.dx * s),
-        math.floor(cy + forward.dy * f + side.dy * s)
-end
-
-local function draw_snake_head()
-    local head = snake[1]
-    local cx, cy = cell_center(head.x, head.y)
-    local forward = DIRS[dir]
-    local side = { dx = -forward.dy, dy = forward.dx }
-    local rx = math.max(6, math.floor(cell * (forward.dx ~= 0 and 0.54 or 0.41)))
-    local ry = math.max(6, math.floor(cell * (forward.dy ~= 0 and 0.54 or 0.41)))
-    local shift = math.floor(cell * 0.12)
-    cx = cx + forward.dx * shift
-    cy = cy + forward.dy * shift
-
-    fill_ellipse(cx + 2, cy + 3, rx + 2, ry + 2, SHADOW)
-    fill_ellipse(cx, cy, rx + 1, ry + 1, CYAN_DIM)
-    fill_ellipse(cx, cy, rx, ry, WHITE_BLUE)
-
-    local nose_f = math.floor(cell * 0.34)
-    local nose_half = math.max(2, math.floor(cell * 0.12))
-    local nx, ny = local_point(cx, cy, forward, side, nose_f, 0)
-    local bx1, by1 = local_point(cx, cy, forward, side, math.floor(cell * 0.02), -nose_half)
-    local bx2, by2 = local_point(cx, cy, forward, side, math.floor(cell * 0.02), nose_half)
-    canvas:fill_triangle(nx, ny, bx1, by1, bx2, by2, CYAN)
-
-    local core_f = math.floor(cell * 0.05)
-    local core_r = math.max(2, math.floor(cell * 0.12))
-    local core_x, core_y = local_point(cx, cy, forward, side, core_f, 0)
-    canvas:fill_circle(core_x, core_y, core_r + 2, rgb(11, 54, 89))
-    canvas:fill_circle(core_x, core_y, core_r, CYAN)
-    canvas:fill_circle(core_x - side.dx, core_y - side.dy, math.max(1, core_r // 3), TEXT)
-
-    local fin_f = -math.floor(cell * 0.15)
-    local fin_side = math.max(3, math.floor(cell * 0.25))
-    local tail_x, tail_y = local_point(cx, cy, forward, side, -math.floor(cell * 0.38), 0)
-    local f1x, f1y = local_point(cx, cy, forward, side, fin_f, -fin_side)
-    local f2x, f2y = local_point(cx, cy, forward, side, fin_f, fin_side)
-    canvas:line(tail_x, tail_y, f1x, f1y, CYAN)
-    canvas:line(tail_x, tail_y, f2x, f2y, CYAN)
-end
-
-local function draw_data_cursor(cx, cy, r, color)
-    local arm = r + math.max(2, math.floor(r * 0.55))
-    canvas:line(cx - arm, cy, cx - r, cy, CYAN_DIM)
-    canvas:line(cx + r, cy, cx + arm, cy, CYAN_DIM)
-    canvas:line(cx, cy - arm, cx, cy - r, CYAN_DIM)
-    canvas:line(cx, cy + r, cx, cy + arm, CYAN_DIM)
-    canvas:stroke_round_rect(cx - r, cy - r, r * 2, r * 2, 2, color)
+local function draw_snake()
+    local inset = math.max(1, cell // 10)
+    local size, depth = cell - inset, math.max(1, cell // 8)
+    for i = #snake, 1, -1 do
+        local x, y = cell_origin(snake[i])
+        x, y = x + inset, y + inset
+        local radius = math.max(1, size // 4)
+        if i < #snake then
+            local nx, ny = cell_origin(snake[i + 1])
+            local bx, by = math.min(x, nx + inset), math.min(y, ny + inset)
+            local bw, bh = math.abs(x - nx - inset) + size, math.abs(y - ny - inset) + size
+            canvas:fill_round_rect(bx, by, bw, bh, radius, C.shade)
+            canvas:fill_round_rect(bx, by, bw, bh - depth, radius, C.mint)
+        end
+        canvas:fill_round_rect(x, y, size, size, radius, C.shade)
+        canvas:fill_round_rect(x, y, size, size - depth, radius, C.mint)
+        if size >= 8 then canvas:fill_round_rect(x + 2, y + 1, size - 4, depth, depth // 2, C.shine) end
+        if i == 1 and size >= 5 then
+            local d, eye = DIRS[dir], math.max(1, cell // 12)
+            local cx, cy = x + size // 2, y + (size - depth) // 2
+            for _, side in ipairs({-1, 1}) do
+                local ex = cx + d.dx * size // 5 - d.dy * side * size // 4
+                local ey = cy + d.dy * size // 5 + d.dx * side * size // 4
+                canvas:fill_circle(ex, ey, eye, C.bg)
+            end
+        end
+    end
 end
 
 local function draw_food()
-    local cx, cy = cell_center(food.x, food.y)
-    local r = math.max(4, math.floor(cell * 0.28))
-    draw_data_cursor(cx, cy, r, CYAN)
-    canvas:fill_rect(cx - math.max(1, r // 3), cy - math.max(1, r // 3),
-        math.max(3, r * 2 // 3), math.max(3, r * 2 // 3), TEXT)
+    if won then return end
+    local x, y = cell_origin(food)
+    local cx, cy, r = x + cell // 2, y + cell // 2 + 1, math.max(1, cell // 3)
+    canvas:fill_circle(cx, cy + 1, r, C.orange_dark)
+    canvas:fill_circle(cx, cy, r, C.orange)
+    if cell >= 8 then
+        canvas:fill_circle(cx - r // 3, cy - r // 3, math.max(1, r // 3), "#FFE0A5")
+        canvas:line(cx, cy - r, cx + math.max(1, r // 2), cy - r - 2, C.mint)
+    end
 end
 
 local function draw_overlay()
     if phase == "playing" then return end
-    local panel_w = math.min(math.floor(board_size * 0.74), 390)
-    local panel_h = clamp(math.floor(board_size * 0.20), 68, 96)
-    local x = board_x + math.floor((board_size - panel_w) / 2)
-    local y = phase == "ready"
-        and board_y + board_size - panel_h - math.max(8, math.floor(cell * 0.5))
-        or board_y + math.floor((board_size - panel_h) / 2)
-    local accent = CYAN
-    local title = phase == "ready" and "READY?"
-        or (phase == "paused" and "PAUSED" or (won and "YOU WIN!" or "GAME OVER"))
-    local hint = phase == "ready" and "SWIPE TO START"
-        or (phase == "paused" and "TAP RESUME" or "SWIPE TO RESTART")
-    canvas:fill_round_rect(x + 4, y + 5, panel_w, panel_h, 9, SHADOW)
-    canvas:fill_round_rect(x, y, panel_w, panel_h, 9, PANEL)
-    canvas:stroke_round_rect(x, y, panel_w, panel_h, 9, accent)
-    aligned_text(x, y + 4, panel_w, math.floor(panel_h * 0.52), title, {
-        color = TEXT, font_size = clamp(math.floor(panel_h * 0.28), 18, 28),
-        align = "center", valign = "middle", bg = PANEL,
-    })
-    aligned_text(x, y + math.floor(panel_h * 0.52), panel_w, math.floor(panel_h * 0.38), hint, {
-        color = CYAN, font_size = small_font, align = "center", valign = "middle", bg = PANEL,
-    })
-end
-
-local function draw_board_content()
-    if phase == "ready" then
-        draw_board_shell()
-        draw_overlay()
-        return
+    local w, h = math.min(board_w - px(12), px(214)), math.min(board_h - 8, px(76))
+    local x = board_x + (board_w - w) // 2
+    local y = phase == "ready" and board_y + board_h - h - px(6) or board_y + (board_h - h) // 2
+    local title = phase == "ready" and "Let's play" or phase == "paused" and "Paused" or won and "You win!" or "Nice run!"
+    local hint = phase == "ready" and "Swipe or tap to start" or phase == "paused" and "Tap to resume" or "Tap to play again"
+    canvas:fill_round_rect(x, y + 3, w, h, px(12), C.shadow)
+    canvas:fill_round_rect(x, y, w, h, px(12), C.bg)
+    text(x + 6, y + px(5), w - 12, px(30), title, 23, phase == "game_over" and C.orange or C.text, true)
+    if phase == "game_over" then
+        text(x + 6, y + px(32), w - 12, px(16), "Score " .. score, 12, C.mint, true)
     end
-    draw_board_base()
-    draw_food()
-    draw_snake_body()
-    draw_snake_head()
-    draw_overlay()
+    text(x + 6, y + h - px(25), w - 12, px(20), hint, 12, C.muted, true)
 end
 
 local function render(full, refresh_hud)
-    canvas:begin(full and { clear = BG } or {})
-    if full then draw_background() end
+    canvas:begin(full and { clear = C.bg } or {})
     if full or refresh_hud then draw_hud() end
-    draw_board_content()
+    canvas:fill_round_rect(board_x - 4, board_y - 4, board_w + 8, board_h + 8, px(10), C.rim)
+    canvas:fill_round_rect(board_x - 3, board_y - 3, board_w + 6, board_h + 6, px(9), C.board)
+    for y = 1, rows do
+        for x = 1, cols do
+            canvas:fill_rect(board_x + (x - 1) * cell + cell // 2, board_y + (y - 1) * cell + cell // 2, 1, 1, C.dot)
+        end
+    end
+    draw_food()
+    draw_snake()
+    draw_overlay()
+    if full then text(0, height - footer, width, footer, "Swipe to steer", 12, C.muted, true) end
     canvas:present()
-
 end
 
-local function direction_from_swipe(dx, dy)
-    if math.abs(dx) < swipe_threshold and math.abs(dy) < swipe_threshold then return nil end
+local function hit_button(x, y)
+    if inside(x, y, exit_x, button_y, button, button) then return "exit" end
+    if inside(x, y, pause_x, button_y, button, button) then return "pause" end
+end
+
+local function swipe(dx, dy)
+    if math.max(math.abs(dx), math.abs(dy)) < swipe_threshold then return nil end
     if math.abs(dx) > math.abs(dy) then return dx > 0 and "right" or "left" end
     return dy > 0 and "down" or "up"
 end
 
+-- A button owns its contact; a drag turns once without waiting for release.
 local function handle_touch()
-    local polled, info = pcall(poll_touch_snapshot)
-    if not polled then
-        print("[snake_game] ERROR: screen touch failed: " .. tostring(info))
-        return nil
+    local point
+    for _, p in ipairs(canvas:touch().points) do
+        if touch_id == nil or p.id == touch_id then point = p; break end
     end
-    if info.pressed then
-        if not touch_down then touch_down = { x = info.x, y = info.y } end
-    elseif info.just_released then
-        if not touch_down then return false end
-        local dx = info.x - touch_down.x
-        local dy = info.y - touch_down.y
-        touch_down = nil
-        if math.abs(dx) < swipe_threshold and math.abs(dy) < swipe_threshold
-            and info.x >= pause_x and info.x <= pause_x + pause_w
-            and info.y >= pause_y and info.y <= pause_y + pause_h then
-            return "toggle_pause"
+    if point then
+        if not touch_down then
+            touch_id = point.id
+            touch_down = { x = point.x, y = point.y, last_x = point.x, last_y = point.y, button = hit_button(point.x, point.y) }
         end
-        local action = direction_from_swipe(dx, dy)
-        return action or false
+        touch_down.last_x, touch_down.last_y = point.x, point.y
+        if not touch_down.button and not touch_down.used then
+            local action = swipe(point.x - touch_down.x, point.y - touch_down.y)
+            if action then touch_down.used = true; return action end
+        end
+    elseif touch_down then
+        local t = touch_down
+        touch_down, touch_id = nil, nil
+        if t.used then return end
+        if t.button then
+            if t.button == hit_button(t.last_x, t.last_y) and not swipe(t.last_x - t.x, t.last_y - t.y) then return t.button end
+        elseif inside(t.x, t.y, board_x, board_y, board_w, board_h) and inside(t.last_x, t.last_y, board_x, board_y, board_w, board_h) then
+            return "tap"
+        end
     end
-    return false
 end
 
-reset_game(nil)
-render(true, true)
-print(string.format("[snake_game] ready screen=%dx%d board=%dx%d grid=%d swipe=%d run_ms=%d",
-    width, height, board_size, board_size, GRID_N, swipe_threshold, RUN_TIME_MS))
-print("[snake_game] swipe up/down/left/right to start and steer")
-
 local run_ok, run_err = xpcall(function()
+    init_audio()
+    reset_game(nil)
+    -- A small preview makes the start screen recognizable before the first move.
+    local cx, cy = cols // 2, math.max(3, rows // 3)
+    snake = { {x=cx+2,y=cy}, {x=cx+1,y=cy}, {x=cx,y=cy}, {x=cx-1,y=cy}, {x=cx-2,y=cy}, {x=cx-2,y=cy-1} }
+    food = { x = math.min(cols, cx + 5), y = cy }
+    render(true, true)
+    print(string.format("[snake_game] ready screen=%dx%d grid=%dx%d", width, height, cols, rows))
     local run_start = now_ms()
     while RUN_TIME_MS == 0 or now_ms() - run_start < RUN_TIME_MS do
         drain_sfx()
         local action = handle_touch()
-        if action == nil then break end
-        if action then
-            if action == "toggle_pause" then
-                if phase == "playing" then
-                    phase = "paused"
-                    render(true, true)
-                elseif phase == "paused" then
-                    phase = "playing"
-                    last_step_ms = now_ms()
-                    render(true, true)
-                end
-            elseif phase == "ready" then
-                reset_game(action)
-                render(true, true)
-            elseif phase == "game_over" then
-                reset_game(action)
-                render(true, true)
-            elseif phase == "playing" then
+        if action == "exit" then break end
+        if action == "pause" or (action == "tap" and phase == "paused") then
+            if phase == "playing" or phase == "paused" then
+                phase = phase == "playing" and "paused" or "playing"
+                last_step_ms = now_ms()
+                render(false, true)
+            end
+        elseif action and (action == "tap" or DIRS[action]) then
+            if phase == "ready" or phase == "game_over" then
+                reset_game(action == "tap" and "right" or action)
+                render(false, true)
+            elseif phase == "playing" and DIRS[action] then
                 set_direction(action)
             end
         end
-
         local now = now_ms()
         if phase == "playing" and now - last_step_ms >= step_ms then
             last_step_ms = now
             local change = step_game()
-            render(false, change.eating)
+            render(false, change.eating or change.game_over)
         end
         delay.delay_ms(FRAME_MS)
     end
 end, debug.traceback)
-
 cleanup()
 if not run_ok then print("[snake_game] ERROR: " .. tostring(run_err)) end
 print("[snake_game] done")
