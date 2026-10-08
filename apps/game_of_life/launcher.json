@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "id": "game_of_life",
+  "entry": "scripts/mosaico_life.lua",
+  "display_name": "Game of Life",
+  "args": {},
+  "order": 20,
+  "visible": true,
+  "catalog": {
+    "description": "Play an immersive full-screen Rainbow Conway's Game of Life on ESP-Claw / Mosaico displays. Adapted for QSPI AMOLED using paced full-frame present. Tap to seed, drag to paint or erase, long-press to reset. Shake-to-scatter needs the Lua imu module; on current Mosaico firmware imu is unavailable so shake is temporarily disabled. Conway B3/S23, chrome-less full-screen; LCD touch preferred.",
+    "category": ["game", "ui"],
+    "tags": [
+      "life",
+      "conway",
+      "rainbow",
+      "arcade",
+      "demo",
+      "button",
+      "touch",
+      "shake",
+      "accelerometer",
+      "immersive"
+    ],
+    "peripherals": ["display"],
+    "simulator": true,
+    "author": "superjames"
+  },
+  "icon": "assets/icon.jpg"
+}

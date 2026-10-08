@@ -1,9 +1,10 @@
 local arg_schema = require("arg_schema")
-local board_manager = require("board_manager")
 local camera = require("camera")
 local color_detect = require("color_detect")
 local delay = require("delay")
 local display = require("display")
+local canvas
+
 local image = require("image")
 local ledc = require("ledc")
 local system = require("system")
@@ -35,7 +36,7 @@ local DEFAULT_X_MAX_ANGLE = 180
 local DEFAULT_Y_MIN_ANGLE = 10
 local DEFAULT_Y_MAX_ANGLE = 70
 local MIN_SERVO_DELTA_DEGREES = 0.05
-local DISPLAY_BG_COLOR = "black"
+local DISPLAY_BG_COLOR = "#000000"
 
 local COLOR_PRESETS = {
     red = { h_min = 170, h_max = 10, s_min = 130, s_max = 255, v_min = 130, v_max = 255 },
@@ -297,8 +298,8 @@ local function cleanup()
     pcall(color_detect.release)
     stop_servos()
     if display_started then
-        pcall(display.end_frame)
-        pcall(display.deinit)
+
+        if canvas then canvas:close(); canvas = nil end
         display_started = false
     end
     if camera_started then
@@ -369,7 +370,7 @@ local function make_detection_rect(result, output_w, output_h, src_x, src_y, src
         y = y,
         width = w,
         height = h,
-        color = "green",
+        color = "#00ff00",
     }
 end
 
@@ -398,45 +399,18 @@ local function detect_registered_color(rgb565, src_x, src_y, src_w, src_h, max_b
 end
 
 local function init_display()
-    local panel_handle, io_handle, lcd_width, lcd_height, panel_if =
-        board_manager.get_display_lcd_params("display_lcd")
-    if not panel_handle then
-        error("get_display_lcd_params failed: " .. tostring(io_handle))
-    end
-    display.init(panel_handle, io_handle, lcd_width, lcd_height, panel_if)
+    canvas = display.open()
     display_started = true
-    pcall(display.backlight, true)
-    display.begin_frame({ clear = false, color = DISPLAY_BG_COLOR, preserve = false })
-    display.clear(DISPLAY_BG_COLOR)
-    display.present_full()
-    display.end_frame()
-
-    local animation_info = display.animation_info()
-    print(string.format(
-        "[gimbal_color_detect] display framebuffers=%d double_buffered=%s",
-        animation_info.framebuffer_count,
-        tostring(animation_info.double_buffered)
-    ))
-    if not animation_info.double_buffered then
-        print("[gimbal_color_detect] WARN: display framebuffer allocation fell back to single buffering")
-    end
+    canvas:begin({ clear = DISPLAY_BG_COLOR })
+    canvas:present()
 end
 
 local function init_camera()
-    local camera_paths, path_err = board_manager.get_camera_paths()
-    if not camera_paths then
-        error("get_camera_paths failed: " .. tostring(path_err))
-    end
-
-    -- Use the board default camera stream first. Some board sensors only expose
-    -- one fixed mode, and forcing a reconfiguration can hide the real init error.
-    print("[gimbal_color_detect] camera dev_path=" .. tostring(camera_paths.dev_path))
-    local opened, open_err = pcall(camera.open, camera_paths.dev_path)
-    if not opened then
-        error("camera.open failed: " .. tostring(open_err))
-    end
+    local devices = camera.list_devices()
+    if #devices == 0 then error("no camera available") end
+    camera.open(devices[1].path)
     camera_started = true
-    pcall(camera.flush)
+    camera.flush()
 end
 
 local function run()
@@ -531,10 +505,11 @@ local function run()
         local display_ms = 0
         if (frame_index % ctx.display_every_n) == 0 then
             t0 = system.millis()
-            local dst_x = math.floor((display.width - src_w) / 2)
+            local dst_x = math.floor((canvas:info().width - src_w) / 2)
             local dst_y = 0
-            display.begin_frame({ clear = false, color = DISPLAY_BG_COLOR, preserve = false })
-            local output_w, output_h = display.draw_image(dst_x, dst_y, rgb565, {
+            canvas:begin({ clear = DISPLAY_BG_COLOR })
+            local output_w, output_h = src_w, src_h
+            canvas:image(dst_x, dst_y, rgb565, {
                 mode = "crop",
                 source = {
                     x = src_x,
@@ -548,7 +523,7 @@ local function run()
             local detection_rect = make_detection_rect(detect_result, output_w, output_h,
                                                        src_x, src_y, src_w, src_h)
             if detection_rect then
-                display.draw_rect(
+                canvas:stroke_rect(
                     dst_x + detection_rect.x,
                     dst_y + detection_rect.y,
                     detection_rect.width,
@@ -556,8 +531,7 @@ local function run()
                     detection_rect.color
                 )
             end
-            display.present_full()
-            display.end_frame({ wait = false })
+            canvas:present({ full = true })
             display_ms = system.millis() - t0
         end
 

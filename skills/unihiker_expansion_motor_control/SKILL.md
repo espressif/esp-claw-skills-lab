@@ -8,8 +8,7 @@
       "category": ["sensor"],
       "tags": ["unihiker", "dfrobot", "expansion board"],
       "peripherals": ["motor"],
-      "cap_groups": ["cap_lua"],
-      "manage_mode": "web"
+      "cap_groups": ["cap_lua"]
     }
 }
 ---

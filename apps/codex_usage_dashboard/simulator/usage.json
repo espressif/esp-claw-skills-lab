@@ -1,0 +1,8 @@
+{
+  "usage": {
+    "five_h_pct": 72,
+    "weekly_pct": 48,
+    "weekly_reset": "2d 4h",
+    "five_h_reset": "2h 15m"
+  }
+}

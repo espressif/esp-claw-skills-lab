@@ -6,7 +6,6 @@
     "cap_groups": [
       "cap_lua"
     ],
-    "manage_mode": "readonly",
     "category": ["game"],
     "tags": ["servo", "ai"]
   }
@@ -33,7 +32,7 @@ Default neutral angles are compatible with the original servo dog controller:
 
 ## Start Web Control
 
-Run the server script asynchronously. It starts the PWM worker, mounts the bundled web UI, and registers HTTP APIs.
+使用 `lua_run_script_async` 启动服务器。只有用户明确要求替换同名任务时才使用 `replace: true`。 It starts the PWM worker, mounts the bundled web UI, and registers HTTP APIs.
 
 ```json
 {
@@ -41,7 +40,7 @@ Run the server script asynchronously. It starts the PWM worker, mounts the bundl
   "timeout_ms": 0,
   "name": "servo_dog_server",
   "exclusive": "servo_dog",
-  "replace": true,
+  "replace": false,
   "args": {
     "app_id": "servo_dog",
     "queue_name": "servo_dog_cmd",
@@ -185,7 +184,7 @@ Valid servo ids are `fl`, `fr`, `bl`, and `br`. Values are clamped to `-25..25` 
 
 ## Extension
 
-To add a new dog action, edit `{CUR_SKILL_DIR}/scripts/servo_dog_worker.lua`:
+扩展动作时，在源码包中修改对应的 `{CUR_SKILL_DIR}/scripts/servo_dog_worker.lua` 后重新部署；不要直接修改 SYSTEM 中的只读包。若用户要求设备端修改，应先创建 DATA 中的完整同名包覆盖，再通过 `publish_skill` 发布。
 
 1. Add a Lua function that calls `set_angle()` or `set_angles()` and uses `action_delay(ms)` inside long loops.
 2. Register it in the `actions` table.
@@ -193,3 +192,7 @@ To add a new dog action, edit `{CUR_SKILL_DIR}/scripts/servo_dog_worker.lua`:
 4. Add a button entry in the server `ACTIONS` list if the web UI should expose it.
 
 Use `action_delay()` instead of `delay.delay_ms()` inside actions so a new command can interrupt the current action.
+
+## 包路径与退出
+
+默认网页资源和 worker 路径从当前脚本位置解析，兼容 SYSTEM 与 DATA 安装。校准数据仍保存在 DATA 根目录的 `servo_dog/config.json`。服务器只清理本次创建的 worker 和命令队列，遇到已有任务或队列冲突时报告错误，不自动停止别的任务。

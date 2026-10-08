@@ -1,5 +1,4 @@
 local arg_schema = require("arg_schema")
-local board_manager = require("board_manager")
 local camera = require("camera")
 local capability = require("capability")
 local delay = require("delay")
@@ -16,7 +15,6 @@ local DEFAULT_COOLDOWN_MS = 10000
 local DEFAULT_MAX_NOTIFICATIONS = 1
 local DEFAULT_TIMEOUT_MS = 3000
 local DEFAULT_WARMUP_FRAMES = 3
-local DEFAULT_STRIDE = 8
 local DEFAULT_PIXEL_THRESHOLD = 0.2
 local DEFAULT_MOVING_THRESHOLD = 0.02
 local DEFAULT_DIR = "movement_detection"
@@ -60,13 +58,15 @@ local ARG_SCHEMA = {
     max_notifications = arg_schema.int({ default = DEFAULT_MAX_NOTIFICATIONS, min = 0 }),
     timeout_ms = arg_schema.int({ default = DEFAULT_TIMEOUT_MS, min = 0 }),
     warmup_frames = arg_schema.int({ default = DEFAULT_WARMUP_FRAMES, min = 0 }),
-    stride = arg_schema.int({ default = DEFAULT_STRIDE, min = 1 }),
+    confirm_frames = arg_schema.int({ default = 2, min = 1 }),
+    hold_frames = arg_schema.int({ default = 3, min = 0 }),
 }
 
 local raw_args = type(args) == "table" and args or {}
 local ctx = arg_schema.parse(raw_args, ARG_SCHEMA)
 
 local camera_opened = false
+local detector
 
 local function raw_arg(name, default)
     local value = raw_args[name]
@@ -99,12 +99,16 @@ local function number_arg(name, default, min, max)
 end
 
 ctx.pixel_threshold = number_arg("pixel_threshold", DEFAULT_PIXEL_THRESHOLD, 0, 1)
-ctx.moving_threshold = number_arg("moving_threshold", DEFAULT_MOVING_THRESHOLD, 0, 1)
+ctx.moving_threshold = number_arg("moving_threshold", DEFAULT_MOVING_THRESHOLD, 0.01, 1)
 ctx.caption = string_arg("caption", DEFAULT_CAPTION)
 ctx.dir = string_arg("dir", DEFAULT_DIR)
 ctx.session_id = string_arg("session_id", nil)
 
 local function cleanup()
+    if detector then
+        pcall(function() detector:close() end)
+        detector = nil
+    end
     if camera_opened then
         local ok, err = pcall(camera.close)
         if not ok then
@@ -148,7 +152,7 @@ end
 
 local function normalize_channel(channel)
     if not channel or channel == "" then
-        return "wechat"
+        error("args.channel or a channel-qualified session_id is required")
     end
     return string.lower(channel)
 end
@@ -245,12 +249,13 @@ local function save_frame(frame, dir_path, index)
 end
 
 local function open_camera()
-    local camera_paths, path_err = board_manager.get_camera_paths()
-    if not camera_paths then
-        error("get_camera_paths failed: " .. tostring(path_err))
+    local devices = camera.list_devices()
+    local device_path = string_arg("device_path", devices[1] and devices[1].path)
+    if not device_path then
+        error("no camera device available")
     end
 
-    local ok, err = pcall(camera.open, camera_paths.dev_path, {
+    local ok, err = pcall(camera.open, device_path, {
         format = { "JPEG", "RGBP", "YUYV", "UYVY", "YU12" },
         width = 320,
         height = 240,
@@ -295,9 +300,10 @@ local function run()
     local frames = 0
     local notifications = 0
     local motion_opts = {
-        stride = ctx.stride,
-        pixel_threshold = ctx.pixel_threshold,
-        moving_threshold = ctx.moving_threshold,
+        pixel_diff_threshold = math.floor(ctx.pixel_threshold * 255 + 0.5),
+        active_pixel_percent = math.ceil(ctx.moving_threshold * 100),
+        confirm_frames = ctx.confirm_frames,
+        hold_frames = ctx.hold_frames,
     }
 
     print(string.format(
@@ -311,7 +317,7 @@ local function run()
     ))
 
     open_camera()
-    motion.reset()
+    detector = motion.new(motion_opts)
 
     while not deadline_ms or system.millis() < deadline_ms do
         local now_ms = system.millis()
@@ -321,22 +327,20 @@ local function run()
 
         do
             local frame <close> = camera.get_frame(ctx.timeout_ms)
-            local gray <close> = image.convert(frame, image.GRAY8)
-            local result = motion.detect(gray, motion_opts)
+            local result = detector:detect(frame)
 
             frames = frames + 1
 
-            if result.has_previous and result.moved then
+            if result.ready and result.motion then
                 local cooled_down = (now_ms - last_notify_ms) >= ctx.cooldown_ms
                 local under_limit = ctx.max_notifications == 0 or notifications < ctx.max_notifications
 
                 print(string.format(
-                    "%s motion frame=%d moving_ratio=%.4f moving_points=%s sample_points=%s cooled_down=%s under_limit=%s",
+                    "%s motion frame=%d moving_ratio=%.4f event=%s cooled_down=%s under_limit=%s",
                     TAG,
                     frames,
-                    result.moving_ratio or 0,
-                    tostring(result.moving_points),
-                    tostring(result.sample_points),
+                    result.score or 0,
+                    tostring(result.event),
                     tostring(cooled_down),
                     tostring(under_limit)
                 ))
@@ -350,7 +354,7 @@ local function run()
                     notify_caption = string.format(
                         "%s，moving_ratio=%.4f，image=%s",
                         ctx.caption,
-                        result.moving_ratio or 0,
+                        result.score or 0,
                         path
                     )
 
@@ -366,9 +370,9 @@ local function run()
                     "%s frame=%d seeded=%s moving_ratio=%.4f moved=%s",
                     TAG,
                     frames,
-                    tostring(not result.has_previous),
-                    result.moving_ratio or 0,
-                    tostring(result.moved)
+                    tostring(not result.ready),
+                    result.score or 0,
+                    tostring(result.motion)
                 ))
             end
         end

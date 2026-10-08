@@ -1,17 +1,18 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import type { SkillData } from '@/types/skill'
+import type { PackageKind, SkillData } from '@/types/skill'
 
 export const useSkillsStore = defineStore('skills', () => {
   const skills = ref<SkillData[]>([])
   const loaded = ref(false)
   const activeCategory = ref<string>('featured')
   const searchQuery = ref('')
+  const activeKind = ref<PackageKind | 'all'>('all')
 
   async function load() {
     if (loaded.value) return
     try {
-      const data = await import('@/generated/skills-data.json')
+      const data = await import('@/generated/catalog-data.json')
       skills.value = data.default as SkillData[]
       loaded.value = true
     } catch {
@@ -66,8 +67,8 @@ export const useSkillsStore = defineStore('skills', () => {
     searchQuery.value = ''
   }
 
-  function getSkillById(id: string): SkillData | undefined {
-    return skills.value.find((s) => s.id === id)
+  function getSkillById(id: string, kind: PackageKind = 'skill'): SkillData | undefined {
+    return skills.value.find((s) => s.id === id && s.kind === kind)
   }
 
   return {
@@ -75,6 +76,7 @@ export const useSkillsStore = defineStore('skills', () => {
     loaded,
     activeCategory,
     searchQuery,
+    activeKind,
     featuredSkills,
     categories,
     allTags,

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "id": "jump_prince_game",
+  "entry": "scripts/jump_prince_game.lua",
+  "display_name": "Jump Prince",
+  "args": {},
+  "order": 20,
+  "visible": true,
+  "catalog": {
+    "description": "Play Jump Prince on the device display: hold LEFT/RIGHT/JUMP to charge, then release to leap.",
+    "category": ["game", "ui"],
+    "tags": ["jump", "platformer", "arcade", "touch", "charge"],
+    "peripherals": ["display"],
+    "simulator": true,
+    "author": "ESP-Claw contributor"
+  },
+  "icon": "assets/icon.jpg"
+}

@@ -8,8 +8,7 @@
       "category": ["hardware"],
       "tags": ["unihiker", "k10", "xl9535", "i2c", "interrupt-like"],
       "peripherals": ["button"],
-      "cap_groups": ["cap_lua"],
-      "manage_mode": "web"
+      "cap_groups": ["cap_lua"]
     }
 }
 ---
@@ -138,3 +137,7 @@ Wait only for A button press:
 3. Use small `poll_interval_ms` (for example `1` to `5`) and suitable `debounce_ms` (for example `8` to `20`) for stable button events.
 4. Run `{CUR_SKILL_DIR}/scripts/unihiker_button.lua`.
 5. Report script output directly to the user.
+
+## 执行超时
+
+`args.timeout_ms` 是按键等待时长，与工具超时不同。默认短等待使用 `lua_run_script`；较长等待需给工具设置更大的正数超时，或改用 `lua_run_script_async`，指定稳定名称 `unihiker_button`、`exclusive: "unihiker_button"`、`replace: false`。脚本的等待时长最多 120000 ms，`args.timeout_ms: 0` 表示不持续等待；不要把它误当作异步任务的无限运行超时，也不要给同步工具传 `timeout_ms: 0`。

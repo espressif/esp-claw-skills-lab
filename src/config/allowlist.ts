@@ -26,19 +26,17 @@ export const ALLOWED_PERIPHERALS = [
   'ws2812',
   'matrix_lidar',
   'stcc4',
-  'button',
 ] as const
 
 export type Peripheral = (typeof ALLOWED_PERIPHERALS)[number]
 
 export const FEATURED_SKILLS: string[] = [
   'bilibili_up_fans',
-  'camera_preview',
   'china_a_share_quote',
   'clock_dial_demo',
   'current_ip_info',
   'current_weather',
-  'flappy_bird',
+  'flappybird',
   'github_repo_star',
   'lcd_touch_paint',
   'codex_usage_dashboard',

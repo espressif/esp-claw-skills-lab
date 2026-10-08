@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "id": "snake_game",
+  "entry": "scripts/snake_game.lua",
+  "display_name": "Snake",
+  "args": {
+    "run_time_ms": 0
+  },
+  "order": 20,
+  "visible": true,
+  "catalog": {
+    "description": "Play a touch-controlled Snake game with a mint-green snake, orange fruit, a responsive dark board, and optional sound effects.",
+    "category": ["game", "ui"],
+    "tags": ["snake", "arcade", "touch", "swipe", "sound"],
+    "peripherals": ["display"],
+    "simulator": true,
+    "author": "ESP-Claw contributor"
+  },
+  "icon": "assets/icon.jpg"
+}

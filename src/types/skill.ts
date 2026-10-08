@@ -1,7 +1,6 @@
 export interface SkillMetadata {
-  cap_groups: string[]
-  manage_mode: string
-  category: string[]
+  cap_groups?: string[]
+  category?: string[]
   peripherals?: string[]
   tags?: string[]
 }
@@ -10,12 +9,8 @@ export interface SkillFrontmatter {
   name: string
   description: string
   author?: string
-  metadata: SkillMetadata
+  metadata?: SkillMetadata
   featured?: boolean
-  simulator?: {
-    entry: string
-    files: string[]
-  }
 }
 
 export interface SkillExtraFiles {
@@ -24,7 +19,16 @@ export interface SkillExtraFiles {
   assets: string[]
 }
 
+export type PackageKind = 'skill' | 'app'
+
 export interface SkillData {
+  icon?: string
+  simulator?: boolean
+  kind: PackageKind
+  key: string
+  packagePath: string
+  rawPath: string
+  readme: string
   id: string
   name: string
   description: string

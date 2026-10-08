@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "id": "game_2048",
+  "entry": "scripts/game_2048.lua",
+  "display_name": "2048",
+  "args": {
+    "run_time_ms": 0
+  },
+  "order": 20,
+  "visible": true,
+  "catalog": {
+    "description": "Play a touch-swipe 2048 puzzle game on the LCD with sliding tile animation and pixel-style sound effects.",
+    "category": ["game", "ui"],
+    "tags": ["2048", "puzzle", "touch", "slide", "pixel", "sound"],
+    "peripherals": ["display"],
+    "simulator": true,
+    "author": "ESP-Claw contributor"
+  },
+  "icon": "assets/icon.jpg"
+}

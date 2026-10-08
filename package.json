@@ -11,7 +11,11 @@
     "type-check": "vue-tsc --build",
     "format": "oxfmt .",
     "validate-skills": "tsx scripts/validate-skills.ts",
-    "prepare": "husky"
+    "prepare": "husky",
+    "validate-apps": "tsx scripts/validate-apps.ts",
+    "validate-packages": "pnpm validate-skills && pnpm validate-apps",
+    "test": "tsx --test tests/*.test.ts",
+    "test-apps": "lua tests/apps.lua"
   },
   "dependencies": {
     "@lucide/vue": "^1.14.0",

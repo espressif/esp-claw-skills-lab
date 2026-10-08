@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "id": "whack_mole_game",
+  "entry": "scripts/whack_mole_game.lua",
+  "display_name": "Whack-a-Mole",
+  "args": {},
+  "order": 20,
+  "visible": true,
+  "catalog": {
+    "description": "Play Whack-a-Mole on the device display: tap raised moles, avoid bombs, beat the 30s clock.",
+    "category": ["game", "ui"],
+    "tags": ["mole", "arcade", "touch", "bomb", "combo"],
+    "peripherals": ["display"],
+    "simulator": true,
+    "author": "superjames"
+  },
+  "icon": "assets/icon.jpg"
+}

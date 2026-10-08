@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "id": "tetris_clock",
+  "entry": "scripts/draw_tetris_clock.lua",
+  "display_name": "Tetris Clock",
+  "args": {},
+  "order": 20,
+  "visible": true,
+  "catalog": {
+    "description": "Show an animated Tetris-style clock on the board display using local time. Use when the user asks for Tetris Clock, falling block clock, or blocky animated time.",
+    "category": ["utility"],
+    "tags": [],
+    "peripherals": ["display"],
+    "simulator": true
+  },
+  "icon": "assets/icon.jpg"
+}

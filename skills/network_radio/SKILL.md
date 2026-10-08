@@ -8,18 +8,8 @@
       "category": ["media", "network", "ui"],
       "tags": ["audio", "radio", "music", "qingting"],
       "peripherals": ["speaker"],
-      "cap_groups": ["cap_lua"],
-      "manage_mode": "web"
-    },
-  "simulator": {
-    "entry": "scripts/network_radio_app.lua",
-    "files": [
-      "scripts/network_radio_app.lua",
-      "scripts/radio_common.lua",
-      "scripts/radio_player_daemon.lua",
-      "scripts/control_network_radio.lua"
-    ]
-  }
+      "cap_groups": ["cap_lua"]
+    }
 }
 ---
 
@@ -29,7 +19,7 @@ Use this skill when the user asks to play, switch, adjust volume, query status, 
 
 Always call the synchronous control script. It starts and controls a background radio player daemon when needed. Do not call the daemon script directly.
 
-The radio uses the board audio output named `audio_dac` by default.
+电台通过 `audio.open_output()` 使用固件提供的默认音频输出，不再接受 `codec_name`。需要可用的扬声器设备和网络。
 
 ## Available Stations
 
@@ -69,11 +59,6 @@ The radio uses the board audio output named `audio_dac` by default.
       "type": "integer",
       "minimum": 0,
       "maximum": 100
-    },
-    "codec_name": {
-      "type": "string",
-      "default": "audio_dac",
-      "description": "Board manager audio output codec name."
     },
     "wait_ms": {
       "type": "integer",
@@ -174,7 +159,7 @@ Stop the radio:
 - `status` reads the last daemon status and does not start playback.
 - `stop` sends a stop command to the daemon; the daemon stops playback, closes audio resources, records the radio as stopped, and exits.
 - The daemon job name is `network_radio_player` and its exclusive group is `audio_output`.
-- Runtime commands use `thread.sync` queues named `network_radio_cmd` and `network_radio_reply`; the last status snapshot is stored in RAMFS under `/ramfs/network_radio/status.json`.
+- Runtime commands use `thread.sync` queues named `network_radio_cmd` and `network_radio_reply`; the last status snapshot is stored under the DATA root as `network_radio/status.json`, resolved with `storage.get_root_dir()`.
 
 ## Recommended Flow
 
@@ -187,3 +172,7 @@ Stop the radio:
 7. Use `action: "status"` when the user asks what is playing or current volume.
 8. Use `action: "stop"` when the user asks to stop, pause, cancel, quit, close, or turn off the radio.
 9. Report the script output directly. If the script returns an error, report that error directly to the user.
+
+## 可选触摸界面
+
+用户要求屏幕控制时，用 `lua_run_script_async` 启动 `{CUR_SKILL_DIR}/scripts/network_radio_app.lua`，指定 `name: "network_radio_ui"`、`exclusive: "display"`、`replace: false`、`timeout_ms: 0`。界面通过当前 `lvgl.init(options)` 自动接入显示和触摸；播放器仍为独立后台任务。只有用户明确要求替换显示任务时才允许 `replace: true`。

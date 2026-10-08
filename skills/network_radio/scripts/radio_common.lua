@@ -9,13 +9,12 @@ local thread = require("thread")
 
 local M = {}
 
-M.DEFAULT_CODEC_NAME = "audio_dac"
 M.DEFAULT_VOLUME = 70
 M.MIN_VOLUME = 0
 M.MAX_VOLUME = 100
 M.DAEMON_JOB_NAME = "network_radio_player"
 M.DAEMON_EXCLUSIVE = "audio_output"
-M.CONTROL_ROOT = "/ramfs"
+M.CONTROL_ROOT = storage.get_root_dir()
 M.CONTROL_DIR_NAME = "network_radio"
 M.STATUS_FILE_NAME = "status.json"
 M.COMMAND_QUEUE_NAME = "network_radio_cmd"

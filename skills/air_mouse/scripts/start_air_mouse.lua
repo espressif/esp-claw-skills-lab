@@ -3,11 +3,24 @@
 
 local arg_schema = require("arg_schema")
 local ble_hid = require("ble_hid")
-local board_manager = require("board_manager")
 local delay = require("delay")
 local display = require("display")
+local canvas
+-- Follow one contact by ID and preserve its last position on release.
+local touch_id, touch_x, touch_y = nil, 0, 0
+local function poll_touch_snapshot()
+    local point
+    local points = canvas:touch().points
+    for _, candidate in ipairs(points) do
+        if touch_id == nil or candidate.id == touch_id then point = candidate; break end
+    end
+    local was_pressed = touch_id ~= nil
+    if point then touch_id, touch_x, touch_y = point.id, point.x, point.y else touch_id = nil end
+    return { pressed = point ~= nil, just_pressed = point ~= nil and not was_pressed,
+        just_released = point == nil and was_pressed, x = touch_x, y = touch_y }
+end
+
 local imu = require("imu")
-local lcd_touch = require("lcd_touch")
 local system = require("system")
 local pose_mapping = require("pose_mapping")
 
@@ -48,7 +61,7 @@ local COLOR = {
     -- From provided SVG icon
     arrow = { r = 0x5F, g = 0xD9, b = 0xFF },
     arrow_shade = { r = 0x51, g = 0xBC, b = 0xDD },
-    stroke = "white",
+    stroke = "#ffffff",
 }
 
 -- 5x7 caps for rotated labels.
@@ -110,7 +123,7 @@ local function draw_text_rot90_ccw(cx, cy, text, color, scale)
                     local sy = row - 1
                     local dx = sy
                     local dy = src_w - 1 - sx
-                    display.fill_rect(
+                    canvas:fill_rect(
                         ox + dx * scale,
                         oy + dy * scale,
                         scale,
@@ -139,7 +152,11 @@ local function stroke_ellipse(cx, cy, rx, ry, color, width)
         local arx = rx + dr
         local ary = ry + dr
         if arx > 0 and ary > 0 then
-            display.draw_ellipse(cx, cy, arx, ary, color)
+            for angle = 0, 359, 4 do
+                local a, b = math.rad(angle), math.rad(angle + 4)
+                canvas:line(math.floor(cx + arx * math.cos(a)), math.floor(cy + ary * math.sin(a)),
+                    math.floor(cx + arx * math.cos(b)), math.floor(cy + ary * math.sin(b)), color)
+            end
         end
     end
 end
@@ -147,13 +164,13 @@ end
 local function stroke_line(x0, y0, x1, y1, color, width)
     width = width or 1
     if width <= 1 then
-        display.draw_line(x0, y0, x1, y1, color)
+        canvas:line(x0, y0, x1, y1, color)
         return
     end
     local half = width // 2
     for d = -half, width - half - 1 do
-        display.draw_line(x0 + d, y0, x1 + d, y1, color)
-        display.draw_line(x0, y0 + d, x1, y1 + d, color)
+        canvas:line(x0 + d, y0, x1 + d, y1, color)
+        canvas:line(x0, y0 + d, x1, y1 + d, color)
     end
 end
 
@@ -184,7 +201,7 @@ local function draw_svg_icon()
         local x1, y1 = P(ax, ay)
         local x2, y2 = P(bx, by)
         local x3, y3 = P(cx, cy)
-        display.fill_triangle(x1, y1, x2, y2, x3, y3, color)
+        canvas:fill_triangle(x1, y1, x2, y2, x3, y3, color)
     end
 
     -- Direction arrows (fill) — same SVG points, transformed by P()
@@ -231,7 +248,9 @@ local function draw_svg_icon()
         local x1, y1 = P(ax, ay)
         local x2, y2 = P(bx, by)
         local x3, y3 = P(cx, cy)
-        display.draw_triangle(x1, y1, x2, y2, x3, y3, COLOR.stroke)
+        canvas:line(x1, y1, x2, y2, COLOR.stroke)
+        canvas:line(x2, y2, x3, y3, COLOR.stroke)
+        canvas:line(x3, y3, x1, y1, COLOR.stroke)
     end
     outline_tri(62, 1.5, 72.2996, 11.9062, 51.7005, 11.9062)
     outline_tri(62, 125.375, 51.7004, 114.969, 72.2995, 114.969)
@@ -255,10 +274,10 @@ local function draw_ui(flash_zone)
         bot_color = COLOR.flash_l
     end
 
-    display.begin_frame({ clear = true, color = "black" })
-    display.fill_rect(0, 0, w, mid, rgb(top_color))
-    display.fill_rect(0, mid, w, h - mid, rgb(bot_color))
-    display.fill_rect(0, mid - 1, w, 2, rgb(COLOR.line))
+    canvas:begin({ clear = "#000000" })
+    canvas:fill_rect(0, 0, w, mid, rgb(top_color))
+    canvas:fill_rect(0, mid, w, h - mid, rgb(bot_color))
+    canvas:fill_rect(0, mid - 1, w, 2, rgb(COLOR.line))
 
     -- Labels on the left strip, fully inside each half (avoid clipping).
     draw_text_rot90_ccw(18, mid // 2, "RIGHT", COLOR.accent_r, 2)
@@ -266,53 +285,16 @@ local function draw_ui(flash_zone)
 
     draw_svg_icon()
 
-    if display.present_full then
-        display.present_full()
-    else
-        display.present()
-    end
+    canvas:present()
 end
 
 local function init_screen()
-    local panel_handle, io_handle, width, height, panel_if =
-        board_manager.get_display_lcd_params("display_lcd")
-    if not panel_handle then
-        -- print("airmouse: display unavailable: " .. tostring(io_handle))
-        return
-    end
-
-    local ok, err = pcall(display.init, panel_handle, io_handle, width, height, panel_if)
-    if not ok then
-        -- print("airmouse: display.init failed: " .. tostring(err))
-        return
-    end
-
-    screen.width = display.width
-    screen.height = display.height
-    if screen.width <= 0 or screen.height <= 0 then
-        -- print("airmouse: invalid display size")
-        pcall(display.deinit)
-        return
-    end
-    screen.mid_y = screen.height // 2
-    screen.ready = true
-
-    local touch_handle, touch_err = board_manager.get_lcd_touch_handle("lcd_touch")
-    if not touch_handle then
-        -- print("airmouse: touch unavailable: " .. tostring(touch_err))
-    else
-        local sync_ok, sync_err = pcall(lcd_touch.sync, touch_handle)
-        if not sync_ok then
-            -- print("airmouse: lcd_touch.sync failed: " .. tostring(sync_err))
-        else
-            screen.touch = touch_handle
-        end
-    end
-
+    canvas = display.open()
+    local info = canvas:info()
+    screen.width, screen.height = info.width, info.height
+    screen.mid_y = info.height // 2
+    screen.ready, screen.touch = true, info.touch_available
     draw_ui(nil)
-    -- print(string.format(
-    --     "airmouse: LCD %dx%d split at y=%d (top=right, bottom=left)",
-    --     screen.width, screen.height, screen.mid_y))
 end
 
 -- Touch: top/bottom = right/left; mid band = scroll wheel.
@@ -420,7 +402,7 @@ local function handle_touch(connected)
         return
     end
 
-    local ok, info = pcall(lcd_touch.poll, screen.touch)
+    local ok, info = pcall(poll_touch_snapshot)
     if not ok or type(info) ~= "table" then
         return
     end
@@ -536,119 +518,134 @@ local function handle_touch(connected)
     end
 end
 
-local ok, err = ble_hid.init({ name = ctx.name })
-if not ok then
-    error("ble_hid.init failed: " .. tostring(err))
-end
-
-ok, err = ble_hid.start({ name = ctx.name })
-if not ok then
-    error("ble_hid.start failed: " .. tostring(err))
-end
-
--- print(string.format("airmouse: advertising as %s — pair from host Bluetooth settings", ctx.name))
-
-init_screen()
-
-local sensor = imu.new()
-local pose = pose_mapping.create({
-    gain = ctx.gain,
-    dead_x = ctx.dead_x,
-    dead_y = ctx.dead_y,
-    max_dx = ctx.max_dx,
-    max_dy = ctx.max_dy,
-})
-
-local was_connected = false
-local was_ready = false
-local send_fail_streak = 0
-
-local function hid_is_ready(status)
-    if type(status) ~= "table" then
-        return false
+local sensor
+local function run()
+    local ok, err = ble_hid.init({ name = ctx.name })
+    if not ok then
+        error("ble_hid.init failed: " .. tostring(err))
     end
-    if status.ready ~= nil then
-        return status.ready
+
+    ok, err = ble_hid.start({ name = ctx.name })
+    if not ok then
+        error("ble_hid.start failed: " .. tostring(err))
     end
-    -- Older firmware without status.ready: require connected + encrypted when present.
-    if status.encrypted ~= nil then
-        return status.connected and status.encrypted
+
+    -- print(string.format("airmouse: advertising as %s — pair from host Bluetooth settings", ctx.name))
+
+    init_screen()
+
+    sensor = imu.new()
+    local pose = pose_mapping.create({
+        gain = ctx.gain,
+        dead_x = ctx.dead_x,
+        dead_y = ctx.dead_y,
+        max_dx = ctx.max_dx,
+        max_dy = ctx.max_dy,
+    })
+
+    local was_connected = false
+    local was_ready = false
+    local send_fail_streak = 0
+
+    local function hid_is_ready(status)
+        if type(status) ~= "table" then
+            return false
+        end
+        if status.ready ~= nil then
+            return status.ready
+        end
+        -- Older firmware without status.ready: require connected + encrypted when present.
+        if status.encrypted ~= nil then
+            return status.connected and status.encrypted
+        end
+        return status.connected
     end
-    return status.connected
-end
 
-while true do
-    local status = ble_hid.status()
-    local ready = hid_is_ready(status)
-    handle_touch(ready)
+    while true do
+        local status = ble_hid.status()
+        local ready = hid_is_ready(status)
+        handle_touch(ready)
 
-    if not status.connected then
-        if was_connected then
-            -- print("airmouse: host disconnected, waiting...")
-            was_connected = false
-            was_ready = false
-            send_fail_streak = 0
-            if held_button then
-                held_button = nil
-                touch_mode = nil
-                wheel_accum = 0
-                pcall(ble_hid.release_all)
-                draw_ui(nil)
-            end
-            pose = pose_mapping.create({
-                gain = ctx.gain,
-                dead_x = ctx.dead_x,
-                dead_y = ctx.dead_y,
-                max_dx = ctx.max_dx,
-                max_dy = ctx.max_dy,
-            })
-        end
-        delay.delay_ms(50)
-    elseif not ready then
-        if not was_connected then
-            -- print("airmouse: host connected, waiting for encryption...")
-            was_connected = true
-        end
-        -- Do not spam HID notifies until the link is encrypted / ready.
-        delay.delay_ms(50)
-    else
-        if not was_ready then
-            -- print("airmouse: link ready (encrypted), starting cursor mapping")
-            was_connected = true
-            was_ready = true
-            send_fail_streak = 0
-            -- Brief settle so host can enable CCCD before first reports.
-            delay.delay_ms(300)
-        end
-
-        local sample = sensor:read()
-        local now_us = system.millis() * 1000
-        local accel = {
-            sample.accel.x * ACCEL_LSB_TO_G,
-            sample.accel.y * ACCEL_LSB_TO_G,
-            sample.accel.z * ACCEL_LSB_TO_G,
-        }
-        local gyro = {
-            sample.gyro.x * GYRO_LSB_TO_DPS,
-            sample.gyro.y * GYRO_LSB_TO_DPS,
-            sample.gyro.z * GYRO_LSB_TO_DPS,
-        }
-
-        local dx, dy = pose_mapping.update_cursor(pose, accel, gyro, now_us)
-        if dx ~= 0 or dy ~= 0 then
-            local moved, move_err = ble_hid.mouse_move(dx, dy)
-            if not moved then
-                send_fail_streak = send_fail_streak + 1
-                if send_fail_streak == 1 or send_fail_streak % 20 == 0 then
-                    -- print("airmouse: mouse_move failed: " .. tostring(move_err))
-                end
-                -- Back off hard: notify ENOTCONN / ESP_FAIL while host is still settling.
-                delay.delay_ms(math.min(500, 80 + send_fail_streak * 20))
-            else
+        if not status.connected then
+            if was_connected then
+                -- print("airmouse: host disconnected, waiting...")
+                was_connected = false
+                was_ready = false
                 send_fail_streak = 0
+                if held_button then
+                    held_button = nil
+                    touch_mode = nil
+                    wheel_accum = 0
+                    pcall(ble_hid.release_all)
+                    draw_ui(nil)
+                end
+                pose = pose_mapping.create({
+                    gain = ctx.gain,
+                    dead_x = ctx.dead_x,
+                    dead_y = ctx.dead_y,
+                    max_dx = ctx.max_dx,
+                    max_dy = ctx.max_dy,
+                })
             end
-        end
+            delay.delay_ms(50)
+        elseif not ready then
+            if not was_connected then
+                -- print("airmouse: host connected, waiting for encryption...")
+                was_connected = true
+            end
+            -- Do not spam HID notifies until the link is encrypted / ready.
+            delay.delay_ms(50)
+        else
+            if not was_ready then
+                -- print("airmouse: link ready (encrypted), starting cursor mapping")
+                was_connected = true
+                was_ready = true
+                send_fail_streak = 0
+                -- Brief settle so host can enable CCCD before first reports.
+                delay.delay_ms(300)
+            end
 
-        delay.delay_ms(ctx.interval_ms)
+            local sample = sensor:read()
+            local now_us = system.millis() * 1000
+            local accel = {
+                sample.accel.x * ACCEL_LSB_TO_G,
+                sample.accel.y * ACCEL_LSB_TO_G,
+                sample.accel.z * ACCEL_LSB_TO_G,
+            }
+            local gyro = {
+                sample.gyro.x * GYRO_LSB_TO_DPS,
+                sample.gyro.y * GYRO_LSB_TO_DPS,
+                sample.gyro.z * GYRO_LSB_TO_DPS,
+            }
+
+            local dx, dy = pose_mapping.update_cursor(pose, accel, gyro, now_us)
+            if dx ~= 0 or dy ~= 0 then
+                local moved, move_err = ble_hid.mouse_move(dx, dy)
+                if not moved then
+                    send_fail_streak = send_fail_streak + 1
+                    if send_fail_streak == 1 or send_fail_streak % 20 == 0 then
+                        -- print("airmouse: mouse_move failed: " .. tostring(move_err))
+                    end
+                    -- Back off hard: notify ENOTCONN / ESP_FAIL while host is still settling.
+                    delay.delay_ms(math.min(500, 80 + send_fail_streak * 20))
+                else
+                    send_fail_streak = 0
+                end
+            end
+
+            delay.delay_ms(ctx.interval_ms)
+        end
     end
+
+end
+
+local ok, err = xpcall(run, debug.traceback)
+pcall(ble_hid.release_all)
+pcall(ble_hid.stop)
+pcall(ble_hid.deinit)
+if sensor then pcall(sensor.close, sensor) end
+if canvas then pcall(canvas.close, canvas) end
+if not ok then
+    print("[air_mouse] ERROR: " .. tostring(err))
+    error(err)
 end

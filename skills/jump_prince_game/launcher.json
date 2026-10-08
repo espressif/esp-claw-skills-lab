@@ -1,9 +1,0 @@
-{
-  "schema_version": 1,
-  "entry": "scripts/jump_prince_game.lua",
-  "args": {},
-  "exclusive": "display",
-  "replace": true,
-  "order": 11,
-  "visible": true
-}

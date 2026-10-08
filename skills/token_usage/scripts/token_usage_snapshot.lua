@@ -12,30 +12,7 @@ local HISTORY_MAX_ENTRIES_PER_DAY = 24
 
 local raw_args = type(args) == "table" and args or {}
 
-local function script_dir()
-    local src = debug.getinfo(1, "S").source or ""
-    if src:sub(1, 1) == "@" then
-        src = src:sub(2)
-    end
-    return (src:match("(.+)/[^/]+$")) or "."
-end
-
-local function normalize_path(path)
-    local parts = {}
-    for seg in string.gmatch(path, "[^/]+") do
-        if seg == ".." then
-            if #parts > 0 then
-                table.remove(parts)
-            end
-        elseif seg ~= "." and seg ~= "" then
-            parts[#parts + 1] = seg
-        end
-    end
-    local prefix = (string.sub(path, 1, 1) == "/") and "/" or ""
-    return prefix .. table.concat(parts, "/")
-end
-
-local HISTORY_DIR = normalize_path(script_dir() .. "/../telemetry_history")
+local HISTORY_DIR = config.HISTORY_DIR
 
 local function resolve_host_port()
     local host = config.as_string(raw_args.host, config.as_string(raw_args.pc_ip, ""))
@@ -242,8 +219,8 @@ local function fmt_num(value, digits)
     return tostring(value)
 end
 
-local function read_standing_state(skill_dir)
-    local path = storage.join_path(skill_dir, "standing_state.json")
+local function read_standing_state()
+    local path = storage.join_path(config.DATA_DIR, "standing_state.json")
     if not storage.exists(path) then
         return 0, false
     end
@@ -304,7 +281,6 @@ local function store_memory(record)
         content = content,
         tags = "token_usage,environment,standing,weather,cursor",
         keywords = string.format("%s,telemetry,snapshot", record.hour or "hourly"),
-        source = "token_usage_snapshot",
     }, {
         source_cap = "token_usage_snapshot",
         max_output_bytes = 4096,
@@ -321,7 +297,8 @@ end
 local host, port = resolve_host_port()
 print(string.format("[token_usage_snapshot] collecting telemetry host=%s port=%d", host, port))
 
-pcall(storage.mkdir, HISTORY_DIR)
+config.ensure_data_dir()
+storage.mkdir(HISTORY_DIR)
 
 local env = read_environment()
 local remote_data = read_remote(host, port)
@@ -336,7 +313,7 @@ local record = {
     pressure_hpa = env.pressure_hpa,
     co2_ppm = env.co2_ppm,
     token_balance = remote_data.token_balance,
-    standing_count = read_standing_state(normalize_path(script_dir() .. "/..")),
+    standing_count = read_standing_state(),
     token_query_ok = remote_data.token_query_ok,
     standing_query_ok = true,
     weather_location = remote_data.weather_location,

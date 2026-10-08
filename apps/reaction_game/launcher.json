@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "id": "reaction_game",
+  "entry": "scripts/reaction_game.lua",
+  "display_name": "Reaction Game",
+  "args": {},
+  "order": 20,
+  "visible": true,
+  "catalog": {
+    "description": "Play the reaction-time test: wait for green, tap as fast as you can, 5 rounds.",
+    "category": ["game", "ui"],
+    "tags": ["reaction", "tap", "arcade", "touch"],
+    "peripherals": ["display"],
+    "simulator": true,
+    "author": "superjames"
+  },
+  "icon": "assets/icon.jpg"
+}
