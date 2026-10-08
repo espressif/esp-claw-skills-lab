@@ -8,13 +8,9 @@
   "visible": true,
   "catalog": {
     "description": "Show an animated Tetris-style clock on the board display using local time. Use when the user asks for Tetris Clock, falling block clock, or blocky animated time.",
-    "category": [
-      "utility"
-    ],
+    "category": ["utility"],
     "tags": [],
-    "peripherals": [
-      "display"
-    ],
+    "peripherals": ["display"],
     "simulator": true
   },
   "icon": "assets/icon.jpg"

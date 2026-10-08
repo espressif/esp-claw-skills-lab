@@ -8,13 +8,9 @@
   "visible": true,
   "catalog": {
     "description": "Show a continuous automatic Snake game animation on the board display. Use when the user asks to play, show, draw, or animate Snake on screen.",
-    "category": [
-      "utility"
-    ],
+    "category": ["utility"],
     "tags": [],
-    "peripherals": [
-      "display"
-    ],
+    "peripherals": ["display"],
     "simulator": true
   },
   "icon": "assets/icon.jpg"

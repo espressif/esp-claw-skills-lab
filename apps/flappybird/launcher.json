@@ -11,19 +11,8 @@
     "description": "点击或按键控制小鸟，支持暂停/继续和重试；右上角 × 返回 Launcher，音效可选。",
     "author": "ESP-Claw contributor",
     "simulator": true,
-    "category": [
-      "game",
-      "ui"
-    ],
-    "tags": [
-      "flappybird",
-      "arcade",
-      "demo",
-      "button",
-      "touch"
-    ],
-    "peripherals": [
-      "display"
-    ]
+    "category": ["game", "ui"],
+    "tags": ["flappybird", "arcade", "demo", "button", "touch"],
+    "peripherals": ["display"]
   }
 }

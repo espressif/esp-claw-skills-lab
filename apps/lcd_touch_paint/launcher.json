@@ -11,18 +11,8 @@
     "description": "选择颜色和笔刷后拖动绘画；CLEAR 清空画布，右上角 × 返回 Launcher，支持小屏工具栏。",
     "author": "ESP-Claw contributor",
     "simulator": true,
-    "category": [
-      "utility",
-      "ui"
-    ],
-    "tags": [
-      "paint",
-      "drawing",
-      "touch",
-      "demo"
-    ],
-    "peripherals": [
-      "display"
-    ]
+    "category": ["utility", "ui"],
+    "tags": ["paint", "drawing", "touch", "demo"],
+    "peripherals": ["display"]
   }
 }

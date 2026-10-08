@@ -8,19 +8,9 @@
   "visible": true,
   "catalog": {
     "description": "Play the reaction-time test: wait for green, tap as fast as you can, 5 rounds.",
-    "category": [
-      "game",
-      "ui"
-    ],
-    "tags": [
-      "reaction",
-      "tap",
-      "arcade",
-      "touch"
-    ],
-    "peripherals": [
-      "display"
-    ],
+    "category": ["game", "ui"],
+    "tags": ["reaction", "tap", "arcade", "touch"],
+    "peripherals": ["display"],
     "simulator": true,
     "author": "superjames"
   },

@@ -9,18 +9,9 @@
   "catalog": {
     "description": "倾斜开发板使球进入目标圈，停留后得分；支持暂停/继续，右上角 × 返回 Launcher。",
     "author": "ESP-Claw contributor",
-    "category": [
-      "game"
-    ],
-    "peripherals": [
-      "display"
-    ],
-    "tags": [
-      "imu",
-      "ball",
-      "tilt",
-      "balance"
-    ]
+    "category": ["game"],
+    "peripherals": ["display"],
+    "tags": ["imu", "ball", "tilt", "balance"]
   },
   "icon": "assets/icon.jpg"
 }

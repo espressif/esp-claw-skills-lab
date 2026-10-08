@@ -10,21 +10,9 @@
   "visible": true,
   "catalog": {
     "description": "Play a touch-controlled 15-puzzle number sliding game on the LCD with lightweight rendering, swipe controls, and pixel-style sound effects.",
-    "category": [
-      "game",
-      "ui"
-    ],
-    "tags": [
-      "15-puzzle",
-      "number puzzle",
-      "sliding puzzle",
-      "touch",
-      "animation",
-      "sound"
-    ],
-    "peripherals": [
-      "display"
-    ],
+    "category": ["game", "ui"],
+    "tags": ["15-puzzle", "number puzzle", "sliding puzzle", "touch", "animation", "sound"],
+    "peripherals": ["display"],
     "simulator": true,
     "author": "ESP-Claw contributor"
   },

@@ -97,11 +97,19 @@ for (const entry of entries) {
   }
 
   const metadata = frontmatter.metadata as Record<string, unknown> | undefined
-  if (metadata !== undefined && (!metadata || typeof metadata !== 'object' || Array.isArray(metadata))) {
+  if (
+    metadata !== undefined &&
+    (!metadata || typeof metadata !== 'object' || Array.isArray(metadata))
+  ) {
     addError(skillId, '`metadata` must be an object')
   } else if (metadata) {
     const groups = metadata.cap_groups
-    if (groups !== undefined && (!isStringArray(groups) || groups.some((group) => !group.trim()) || new Set(groups).size !== groups.length)) {
+    if (
+      groups !== undefined &&
+      (!isStringArray(groups) ||
+        groups.some((group) => !group.trim()) ||
+        new Set(groups).size !== groups.length)
+    ) {
       addError(skillId, '`metadata.cap_groups` must contain unique non-empty strings')
     }
     const categories = metadata.category
@@ -154,7 +162,11 @@ for (const entry of entries) {
   const packageRoot = fs.realpathSync(skillDir)
   for (const match of content.matchAll(/\{CUR_SKILL_DIR\}\/([^\s`"'<>()[\]{}]+)/g)) {
     const relative = match[1]
-    if (relative.includes('\\') || relative.split('/').includes('..') || path.isAbsolute(relative)) {
+    if (
+      relative.includes('\\') ||
+      relative.split('/').includes('..') ||
+      path.isAbsolute(relative)
+    ) {
       addError(skillId, `Package reference must stay inside its Skill: "${relative}"`)
       continue
     }

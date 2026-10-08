@@ -10,20 +10,9 @@
     "description": "MOMENT 双主题立体时钟：陶瓷表盘、触摸视差与旋钮专注计时，可在线试玩。",
     "author": "ESP-Claw contributor",
     "simulator": true,
-    "category": [
-      "utility",
-      "ui"
-    ],
-    "tags": [
-      "clock",
-      "watchface",
-      "focus",
-      "timer",
-      "interaction"
-    ],
-    "peripherals": [
-      "display"
-    ]
+    "category": ["utility", "ui"],
+    "tags": ["clock", "watchface", "focus", "timer", "interaction"],
+    "peripherals": ["display"]
   },
   "icon": "assets/icon.jpg"
 }

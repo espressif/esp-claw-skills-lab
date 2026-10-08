@@ -10,20 +10,9 @@
   "visible": true,
   "catalog": {
     "description": "Play a touch-controlled Snake game with a mint-green snake, orange fruit, a responsive dark board, and optional sound effects.",
-    "category": [
-      "game",
-      "ui"
-    ],
-    "tags": [
-      "snake",
-      "arcade",
-      "touch",
-      "swipe",
-      "sound"
-    ],
-    "peripherals": [
-      "display"
-    ],
+    "category": ["game", "ui"],
+    "tags": ["snake", "arcade", "touch", "swipe", "sound"],
+    "peripherals": ["display"],
     "simulator": true,
     "author": "ESP-Claw contributor"
   },

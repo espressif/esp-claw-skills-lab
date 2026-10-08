@@ -10,19 +10,9 @@
     "description": "显示 5 小时与每周剩余额度，每分钟自动刷新；支持手动刷新、失败提示及右上角退出。",
     "author": "",
     "simulator": true,
-    "category": [
-      "utility",
-      "ai"
-    ],
-    "tags": [
-      "codex",
-      "usage",
-      "quota",
-      "dashboard"
-    ],
-    "peripherals": [
-      "display"
-    ]
+    "category": ["utility", "ai"],
+    "tags": ["codex", "usage", "quota", "dashboard"],
+    "peripherals": ["display"]
   },
   "icon": "assets/icon.jpg"
 }

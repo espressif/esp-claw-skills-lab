@@ -8,13 +8,9 @@
   "visible": true,
   "catalog": {
     "description": "Generate, draw, and solve animated mazes on the board display using local Lua computation. Use when the user asks to show, draw, generate, solve, or animate a maze.",
-    "category": [
-      "utility"
-    ],
+    "category": ["utility"],
     "tags": [],
-    "peripherals": [
-      "display"
-    ],
+    "peripherals": ["display"],
     "simulator": true
   },
   "icon": "assets/icon.jpg"
