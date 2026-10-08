@@ -8,20 +8,9 @@
   "visible": true,
   "catalog": {
     "description": "Play Jump Prince on the device display: hold LEFT/RIGHT/JUMP to charge, then release to leap.",
-    "category": [
-      "game",
-      "ui"
-    ],
-    "tags": [
-      "jump",
-      "platformer",
-      "arcade",
-      "touch",
-      "charge"
-    ],
-    "peripherals": [
-      "display"
-    ],
+    "category": ["game", "ui"],
+    "tags": ["jump", "platformer", "arcade", "touch", "charge"],
+    "peripherals": ["display"],
     "simulator": true,
     "author": "ESP-Claw contributor"
   },

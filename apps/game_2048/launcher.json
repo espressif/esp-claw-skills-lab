@@ -10,21 +10,9 @@
   "visible": true,
   "catalog": {
     "description": "Play a touch-swipe 2048 puzzle game on the LCD with sliding tile animation and pixel-style sound effects.",
-    "category": [
-      "game",
-      "ui"
-    ],
-    "tags": [
-      "2048",
-      "puzzle",
-      "touch",
-      "slide",
-      "pixel",
-      "sound"
-    ],
-    "peripherals": [
-      "display"
-    ],
+    "category": ["game", "ui"],
+    "tags": ["2048", "puzzle", "touch", "slide", "pixel", "sound"],
+    "peripherals": ["display"],
     "simulator": true,
     "author": "ESP-Claw contributor"
   },

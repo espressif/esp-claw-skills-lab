@@ -8,21 +8,9 @@
   "visible": true,
   "catalog": {
     "description": "Play a six-string Mosaico guitar: choose simple chords, tap strings, or swipe to strum.",
-    "category": [
-      "media",
-      "ui"
-    ],
-    "tags": [
-      "guitar",
-      "instrument",
-      "chords",
-      "strum",
-      "touch"
-    ],
-    "peripherals": [
-      "display",
-      "speaker"
-    ],
+    "category": ["media", "ui"],
+    "tags": ["guitar", "instrument", "chords", "strum", "touch"],
+    "peripherals": ["display", "speaker"],
     "simulator": true,
     "author": "xujiamu"
   },
