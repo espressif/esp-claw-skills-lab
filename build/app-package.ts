@@ -11,6 +11,18 @@ export function readAppPackage(dir: string) {
   const fail = (message: string): never => {
     throw new Error(`[apps/${id}] ${message}`)
   }
+  // Validate every published file before reading or copying package content.
+  function checkTree(file: string) {
+    const stat = fs.lstatSync(file)
+    if (stat.isSymbolicLink())
+      fail(`symbolic links are not allowed: ${path.relative(dir, file) || '.'}`)
+    if (stat.isDirectory()) {
+      for (const name of fs.readdirSync(file)) checkTree(path.join(file, name))
+    } else if (!stat.isFile()) {
+      fail(`unsupported file type: ${path.relative(dir, file)}`)
+    }
+  }
+  checkTree(dir)
   const raw = fs.readFileSync(path.join(dir, 'launcher.json'), 'utf-8')
   if (Buffer.byteLength(raw) > 4096) fail('launcher.json exceeds 4096 bytes')
   const manifest: unknown = JSON.parse(raw)

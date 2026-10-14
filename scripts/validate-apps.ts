@@ -4,7 +4,9 @@ import { readAppPackage } from '../build/app-package'
 
 const root = path.resolve(import.meta.dirname, '..', 'apps')
 const entries = fs.existsSync(root)
-  ? fs.readdirSync(root, { withFileTypes: true }).filter((entry) => entry.isDirectory())
+  ? fs
+      .readdirSync(root, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() || entry.isSymbolicLink())
   : []
 let failures = 0
 for (const entry of entries) {
