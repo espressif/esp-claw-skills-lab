@@ -89,13 +89,15 @@ local function run(id, options)
         assert(state.now < (options.max_ms or 10000), "App did not terminate")
         if options.cancel then error("injected cancellation") end
     end
-    local imu = { new = function()
+    local imu = { new = function(config, ...)
+        assert(type(config) == "table" and select('#', ...) == 0, "imu.new requires one config table")
+        assert(config.device == "imu_sensor", "unexpected board IMU device")
         if options.imu_error then error("injected IMU open failure") end
         state.imu_open = true
         return {
             read = function()
                 if options.read_error then error("injected IMU read failure") end
-                return { accel = { x = 120, y = -120, z = 2048 } }
+                return { accel = options.accel and options.accel(state) or { x = 120, y = -120, z = 16384 } }
             end,
             close = function() state.imu_open = false end,
         }
@@ -167,6 +169,28 @@ run("balance_ball", { imu_error = true, expect_error = true })
 run("balance_ball", { read_error = true, expect_error = true })
 run("balance_ball", { cancel = true, expect_error = true })
 run("balance_ball", { args = { lsb_per_g = 0 }, expect_error = true })
+-- Exercise tilt, reversal, and release using the board's +/-2g scale.
+local tilt_speed, reverse_speed
+run("balance_ball", {
+    no_touch = true, args = { run_ms = 660 },
+    accel = function(state)
+        local tilt = state.frames < 5 and 4096 or (state.frames < 10 and -4096 or 0)
+        return { x = tilt, y = tilt, z = 15864 }
+    end,
+    observe = function(state, values)
+        local ball = values.ball
+        if state.frames == 1 then assert(ball.vx < 0 and ball.vy > 0, "incorrect default tilt direction") end
+        if state.frames == 5 then
+            tilt_speed = math.abs(ball.vx)
+            assert(tilt_speed > 4, "tilt response too slow")
+        end
+        if state.frames == 10 then
+            assert(ball.vx > 0 and ball.vy < 0, "tilt reversal too slow")
+            reverse_speed = math.abs(ball.vx)
+        end
+        if state.frames == 25 then assert(math.abs(ball.vx) < reverse_speed * 0.1, "excessive drift after release") end
+    end,
+})
 run("clock_dial_demo", { width = 160, height = 160 })
 run("flappybird", { bits = 32, channels = 2, rate = 44100 })
 run("flappybird", { no_audio = true })
