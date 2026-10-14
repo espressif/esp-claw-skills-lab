@@ -24,19 +24,21 @@ local function main()
 
     local RUN_TIME_MS  = math.floor(num_arg("run_ms", 0, 0, 86400000))
     local FRAME_MS     = math.max(15, math.floor(num_arg("frame_ms", 22, 15, 1000)))
-    local LSB_PER_G   = num_arg("lsb_per_g", 2048.0, 1, 65536)
+    -- Mosaico's board IMU uses the +/-2g range.
+    local LSB_PER_G   = num_arg("lsb_per_g", 16384.0, 1, 65536)
 
     -- axis mapping
-    local INV_X   = bool_arg("invert_x", false)
-    local INV_Y   = bool_arg("invert_y", true)
+    local INV_X   = bool_arg("invert_x", true)
+    local INV_Y   = bool_arg("invert_y", false)
     local SWAP_XY = bool_arg("swap_xy", false)
 
     -- ============ Game Parameters ============
     local BALL_R      = math.floor(num_arg("ball_r", 8, 2, 32))
     local TARGET_R0   = math.floor(num_arg("target_r", 16, 7, 64))
     local TARGET_R_MIN = 7
-    local ACCEL_K     = num_arg("accel_k", 1.8, 0.01, 20)
-    local FRICTION    = num_arg("friction", 0.985, 0, 1)
+    -- Stronger drive and damping make tilt changes respond quickly.
+    local ACCEL_K     = num_arg("accel_k", 5.0, 0.01, 20)
+    local FRICTION    = num_arg("friction", 0.85, 0, 1)
     local BOUNCE      = num_arg("bounce", 0.5, 0, 1)
     local MAX_SPEED   = num_arg("max_speed", 6.5, 0.1, 32)
     local HOLD_FRAMES = math.floor(num_arg("hold_frames", 14, 1, 1000))
@@ -61,7 +63,7 @@ local function main()
     local AX0, AY0, AX1, AY1 = 4, 38, W - 4, H - 24
     assert(AX1 - AX0 > 2 * (TARGET_R0 + BALL_R + 6) and AY1 - AY0 > 2 * (TARGET_R0 + BALL_R + 6), "screen too small for configured radii")
 
-    local imu_dev = imu.new()
+    local imu_dev = imu.new({ device = "imu_sensor" })
     -- IMU userdata has close() but no __close metamethod.
     local imu_guard <close> = setmetatable({}, { __close = function()
         local ok, err = pcall(imu_dev.close, imu_dev)
