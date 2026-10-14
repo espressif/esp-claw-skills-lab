@@ -35,7 +35,7 @@ function openSimulator() {
         />
         <div class="card-copy">
           <h3 class="card-title">{{ skill.title || skill.name }}</h3>
-          <p class="card-author">{{ skill.kind === 'app' ? 'App' : 'Skill' }} · {{ authorName }}</p>
+          <p class="card-author">{{ $t(`package.${skill.kind}Label`) }} · {{ authorName }}</p>
         </div>
       </div>
       <div class="card-actions">
