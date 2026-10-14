@@ -85,7 +85,37 @@ test('App manifest accepts an independent package and rejects invalid publicatio
     fs.writeFileSync(path.join(temp, 'outside.lua'), 'return true')
     fs.symlinkSync(path.join(temp, 'outside.lua'), path.join(dir, 'scripts/escape.lua'))
     write({ entry: 'scripts/escape.lua' })
-    assert.throws(() => readAppPackage(dir), /escapes package/)
+    assert.throws(() => readAppPackage(dir), /symbolic links are not allowed/)
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true })
+  }
+})
+
+test('App packages reject links anywhere in the published tree', () => {
+  const { dir, temp } = fixture()
+  try {
+    fs.mkdirSync(path.join(dir, 'assets/nested'), { recursive: true })
+    fs.writeFileSync(path.join(temp, 'outside.txt'), 'outside package')
+    for (const [name, target] of [
+      ['assets/nested/external.txt', '../../../outside.txt'],
+      ['assets/internal.lua', '../scripts/main.lua'],
+      ['assets/missing.txt', '../../missing.txt'],
+      ['assets/directory', '../scripts'],
+      ['assets/cycle', '..'],
+      ['launcher.json', '../outside.txt'],
+    ] as const) {
+      const link = path.join(dir, name)
+      const original = fs.existsSync(link) ? fs.readFileSync(link) : undefined
+      if (original) fs.unlinkSync(link)
+      fs.symlinkSync(target, link)
+      assert.throws(() => readAppPackage(dir), /symbolic links are not allowed/, name)
+      fs.unlinkSync(link)
+      if (original) fs.writeFileSync(link, original)
+    }
+    const alias = path.join(temp, 'alias')
+    fs.symlinkSync(dir, alias)
+    assert.throws(() => readAppPackage(alias), /symbolic links are not allowed/)
+    assert.equal(readAppPackage(dir).entry, 'scripts/main.lua')
   } finally {
     fs.rmSync(temp, { recursive: true, force: true })
   }

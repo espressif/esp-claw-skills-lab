@@ -270,7 +270,9 @@ export default function skillsPlugin(): Plugin {
       for (const kind of ['skill', 'app'] as const) {
         const root = kind === 'app' ? appsDir : skillsDir
         if (!fs.existsSync(root)) continue
-        const entries = fs.readdirSync(root, { withFileTypes: true }).filter((e) => e.isDirectory())
+        const entries = fs
+          .readdirSync(root, { withFileTypes: true })
+          .filter((e) => e.isDirectory() || (kind === 'app' && e.isSymbolicLink()))
         for (const entry of entries) {
           const skillDir = path.join(root, entry.name)
           let fm: Record<string, unknown>
