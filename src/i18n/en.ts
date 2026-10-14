@@ -22,6 +22,8 @@ export default {
     all: 'Apps and Skills',
     app: 'Apps',
     skill: 'Skills',
+    appLabel: 'App',
+    skillLabel: 'Skill',
     empty: 'No matching apps or skills.',
     notFound: 'App or Skill not found.',
   },

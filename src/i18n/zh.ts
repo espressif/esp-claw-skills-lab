@@ -22,6 +22,8 @@ export default {
     all: '应用与技能',
     app: 'App 应用',
     skill: 'Skill 技能',
+    appLabel: 'App 应用',
+    skillLabel: 'Skill 技能',
     empty: '未找到匹配的应用或技能。',
     notFound: '未找到该应用或技能。',
   },

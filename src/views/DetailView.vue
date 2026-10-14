@@ -218,9 +218,7 @@ watch([skillId, packageKind], loadSkill)
               "
             />
             <h1 class="skill-title">{{ skill.title || skill.name }}</h1>
-            <span class="title-id"
-              >{{ skill.kind === 'app' ? 'App' : 'Skill' }} · {{ skill.id }}</span
-            >
+            <span class="title-id">{{ t(`package.${skill.kind}Label`) }} · {{ skill.id }}</span>
           </div>
           <div class="skill-meta">
             <span class="meta-item">
