@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "id": "solar_system",
+  "entry": "scripts/main.lua",
+  "display_name": "Solar System",
+  "args": {},
+  "order": 20,
+  "visible": true,
+  "icon": "assets/icon.jpg",
+  "catalog": {
+    "description": "展示太阳系行星及轨道，支持单指旋转、双指缩放和平移。",
+    "category": ["ui"],
+    "peripherals": ["display"]
+  }
+}
