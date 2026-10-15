@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "id": "neon_strike",
+  "entry": "scripts/main.lua",
+  "display_name": "Neon Strike",
+  "args": {},
+  "order": 21,
+  "visible": true,
+  "icon": "assets/icon.jpg",
+  "catalog": {
+    "description": "触屏操控飞船，躲避敌弹并击败不断来袭的敌人，支持战斗音效。",
+    "category": ["game"],
+    "peripherals": ["display"]
+  }
+}
