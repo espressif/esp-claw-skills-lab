@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "fruit_slice",
+  "entry": "scripts/main.lua",
+  "display_name": "Fruit Slice",
+  "args": {},
+  "order": 30,
+  "visible": true,
+  "icon": "assets/icon.jpg",
+  "catalog": {
+    "description": "Swipe through juicy fruit, chain combos, and trigger double-score Fever in a 60-second rush. Relax in endless, bomb-free Zen mode.",
+    "category": ["game"],
+    "peripherals": ["display", "speaker"],
+    "tags": ["fruit", "arcade", "swipe", "touch", "audio"],
+    "description_i18n": {
+      "zh-cn": "滑动切开水果，积累连切并触发双倍得分，在 60 秒内冲击纪录；也可选择无炸弹、无计时的禅模式。"
+    }
+  }
+}

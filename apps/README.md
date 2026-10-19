@@ -15,6 +15,7 @@
 | `flip_hourglass`        | Flip Hourglass       | 暂未开放           |
 | `gravity_maze`          | Gravity Maze         | 暂未开放           |
 | `pocket_aquarium`       | Pocket Aquarium      | 暂未开放           |
+| `fruit_slice`           | Fruit Slice          | 暂未开放           |
 | `game_2048`             | 2048                 | 已开放             |
 | `game_of_life`          | Game of Life         | 已开放             |
 | `jump_prince_game`      | Jump Prince          | 已开放             |
