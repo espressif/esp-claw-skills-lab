@@ -11,6 +11,9 @@
     "description": "Flip to restart the timer. Choose 1, 3, 5, or 10 minutes, with pause and resume.",
     "category": ["utility"],
     "peripherals": ["display"],
-    "tags": ["imu", "motion", "audio"]
+    "tags": ["imu", "motion", "audio"],
+    "description_i18n": {
+      "zh-cn": "翻转设备即可重新计时，可选 1、3、5 或 10 分钟，支持暂停与继续。"
+    }
   }
 }

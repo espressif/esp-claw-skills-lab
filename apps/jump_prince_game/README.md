@@ -1,9 +1,9 @@
 # Jump Prince
 
-从设备 Launcher 启动，使用 LVGL 显示原版关卡和像素精灵。
+Launch from the device Launcher to play the original levels and pixel sprites rendered with LVGL.
 
-按住底部 Left / Jump / Right 蓄力，松开跳跃。触摸区域向按钮上方延伸，按住后滑动不会切换方向。各按钮显示独立蓄力条，顶部显示关卡编号，并提供暂停、继续、重开和退出。暂停取消当前蓄力，继续后不会意外起跳。
+Hold Left / Jump / Right at the bottom to charge a jump, then release to leap. Touch targets extend above the buttons. Sliding after a press does not change direction. Each button shows its own charge bar. The top bar displays the level number and provides pause, resume, restart, and exit controls. Pausing cancels the current charge so resuming does not trigger an accidental jump.
 
-`launcher.json.args` 可选配置：`assets_dir` 指定精灵目录；`tile_px` 指定整数网格尺寸，必须能完整放入显示区域。默认自动使用包内资源并适配屏幕。
+Optional settings in `launcher.json.args`: `assets_dir` selects the sprite directory; `tile_px` sets an integer tile size that must fit entirely within the display area. By default, the App uses bundled assets and adapts to the screen.
 
-需要包含对象标志和置顶接口的新版 Lua LVGL 固件。已开放浏览器试玩；真机画面和触摸手感仍需验证。
+Requires recent Lua LVGL firmware with object-flag and bring-to-front APIs. Browser play is available; display rendering and touch feel still need verification on the physical device.

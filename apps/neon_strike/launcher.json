@@ -8,8 +8,11 @@
   "visible": true,
   "icon": "assets/icon.jpg",
   "catalog": {
-    "description": "触屏操控飞船，躲避敌弹并击败不断来袭的敌人，支持战斗音效。",
+    "description": "Steer your ship with touch controls, dodge incoming fire, and defeat waves of enemies with battle sound effects.",
     "category": ["game"],
-    "peripherals": ["display"]
+    "peripherals": ["display"],
+    "description_i18n": {
+      "zh-cn": "触屏操控飞船，躲避敌弹并击败不断来袭的敌人，配有战斗音效。"
+    }
   }
 }

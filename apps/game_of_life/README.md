@@ -1,9 +1,9 @@
 # Game of Life
 
-点击放置种子，拖动绘制或擦除细胞，长按重置；有 IMU 时可摇动打散。
+Tap to seed cells, drag to paint or erase them, and long-press to reset. Shake to scatter cells when an IMU is available.
 
-从设备 Launcher 启动。显示屏，触摸优先；无触摸时使用 GPIO0 按钮，IMU 可选。退出可使用设备 Launcher 的返回操作。
+Launch from the device Launcher. Requires a display; touch input is preferred. Without touch input, use the GPIO0 button. An IMU is optional. Use the device Launcher's back action to exit.
 
-配置写在 `launcher.json.args`，默认无需修改。`cell_px` 调整格子大小，`display_ms` 和 `step_ms` 调整刷新与演化间隔，`imu_device` 选择板载 IMU。
+Configure options in `launcher.json.args`; the defaults work without changes. `cell_px` adjusts cell size, `display_ms` and `step_ms` set display and simulation intervals, and `imu_device` selects the board's IMU.
 
-已开放浏览器模拟入口；音频和传感器效果以真机为准，本次 API 迁移尚未运行验证。
+A browser simulator is available. Audio and sensor behavior depend on the physical device; runtime validation of this API migration is still pending.

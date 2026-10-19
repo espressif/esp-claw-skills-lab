@@ -1,9 +1,9 @@
 # Reaction Game
 
-等待提示变色后点击，比较反应时间；RST 重置，EXIT 退出。
+Wait for the signal to change color, then tap to measure your reaction time. RST resets the game; EXIT closes it.
 
-从设备 Launcher 启动。触摸屏，使用 LVGL 和包内按钮图片。退出可使用设备 Launcher 的返回操作，也可使用界面 EXIT 按钮。
+Launch from the device Launcher. Requires a touch display and uses LVGL with bundled button images. Exit with the on-screen EXIT button or the device Launcher's back action.
 
-配置写在 `launcher.json.args`，默认无需修改。无需配置。
+Launch settings are stored in `launcher.json.args`. No configuration changes are required.
 
-已开放浏览器试玩，实际运行效果待验证。
+Browser play is available; behavior on the physical device still needs verification.

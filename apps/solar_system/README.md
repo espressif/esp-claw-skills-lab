@@ -1,12 +1,12 @@
 # Solar System
 
-太阳系可视化应用，展示行星、公转轨道、土星环和小行星带。
+Explore an animated solar system with planets, orbital paths, Saturn's rings, and an asteroid belt.
 
-- 单指拖动旋转视角，松手后带有惯性。
-- 双指缩放并平移画面，需要支持多点触摸的显示屏。
-- 无触摸输入时仍可观看行星运动。
-- 入口：`scripts/main.lua`。
-- `args.frame_ms`：帧间隔，默认 33 毫秒。
-- `args.run_ms`：运行时长，单位毫秒，默认 0 表示持续运行。
+- Drag with one finger to rotate the view. Rotation continues with inertia after release.
+- Use two fingers to zoom and pan on displays that support multitouch.
+- Planetary motion remains visible without touch input.
+- Entry point: `scripts/main.lua`.
+- `args.frame_ms`: frame interval in milliseconds, default 33.
+- `args.run_ms`: runtime in milliseconds, default 0 for continuous display.
 
-行星尺寸、距离与时间采用适合屏幕展示的缩放，不代表真实比例。
+Planet sizes, distances, and time are scaled for screen viewing and do not represent true proportions.

@@ -11,6 +11,9 @@
     "description": "Tilt to move the water and fish, tap to feed, and switch between day and night.",
     "category": ["ui"],
     "peripherals": ["display"],
-    "tags": ["imu", "motion", "audio"]
+    "tags": ["imu", "motion", "audio"],
+    "description_i18n": {
+      "zh-cn": "倾斜设备让水面和鱼群随之变化，点击喂食，并在白天与夜晚之间切换。"
+    }
   }
 }

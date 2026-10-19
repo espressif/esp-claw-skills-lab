@@ -12,7 +12,10 @@
     "tags": ["guitar", "instrument", "chords", "strum", "touch"],
     "peripherals": ["display", "speaker"],
     "simulator": true,
-    "author": "xujiamu"
+    "author": "xujiamu",
+    "description_i18n": {
+      "zh-cn": "弹奏六弦 Mosaico 吉他：选择和弦、轻点琴弦，或滑动扫弦。"
+    }
   },
   "icon": "assets/icon.jpg"
 }

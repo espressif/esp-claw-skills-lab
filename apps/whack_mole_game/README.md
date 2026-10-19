@@ -1,9 +1,9 @@
 # Whack-a-Mole
 
-30 秒内点击地鼠，避开炸弹；命中加分并连击，RST 重开，EXIT 退出。
+Tap moles and avoid bombs during a 30-second round. Hits earn points and build combos. RST restarts the game; EXIT closes it.
 
-从设备 Launcher 启动。触摸屏，使用 LVGL 和包内 RGB565 图片。退出可使用设备 Launcher 的返回操作，也可使用界面 EXIT 按钮。
+Launch from the device Launcher. Requires a touch display and uses LVGL with bundled RGB565 images. Exit with the on-screen EXIT button or the device Launcher's back action.
 
-配置写在 `launcher.json.args`，默认无需修改。无需配置。
+Launch settings are stored in `launcher.json.args`. No configuration changes are required.
 
-已开放浏览器试玩，实际运行效果待验证。
+Browser play is available; behavior on the physical device still needs verification.

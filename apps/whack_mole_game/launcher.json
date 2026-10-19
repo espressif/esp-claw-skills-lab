@@ -12,7 +12,10 @@
     "tags": ["mole", "arcade", "touch", "bomb", "combo"],
     "peripherals": ["display"],
     "simulator": true,
-    "author": "superjames"
+    "author": "superjames",
+    "description_i18n": {
+      "zh-cn": "在 30 秒内点击冒出的地鼠，避开炸弹，挑战更高得分。"
+    }
   },
   "icon": "assets/icon.jpg"
 }

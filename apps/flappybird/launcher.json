@@ -8,11 +8,14 @@
   "order": 11,
   "visible": true,
   "catalog": {
-    "description": "点击或按键控制小鸟，支持暂停/继续和重试；右上角 × 返回 Launcher，音效可选。",
+    "description": "Tap the screen or press a button to keep the bird flying. Pause, resume, or retry, with optional sound effects. Tap the top-right X to return to the Launcher.",
     "author": "ESP-Claw contributor",
     "simulator": true,
     "category": ["game", "ui"],
     "tags": ["flappybird", "arcade", "demo", "button", "touch"],
-    "peripherals": ["display"]
+    "peripherals": ["display"],
+    "description_i18n": {
+      "zh-cn": "点击屏幕或按键让小鸟飞行，支持暂停、继续和重试，可选音效。点击右上角 X 返回启动器。"
+    }
   }
 }

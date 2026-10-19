@@ -43,6 +43,8 @@ test('App manifest accepts an independent package and rejects invalid publicatio
     assert.throws(() => readAppPackage(dir), /simulator must be a boolean/)
     write({ catalog: { ...catalog, simulator: true } })
     assert.equal(readAppPackage(dir).catalog.simulator, true)
+    write({ catalog: { ...catalog, description_i18n: { 'zh-cn': '示例应用' } } })
+    assert.deepEqual(readAppPackage(dir).catalog.description_i18n, { 'zh-cn': '示例应用' })
     assert.deepEqual(readAppPackage(dir).metadata, {
       category: ['utility'],
       tags: ['clock'],
@@ -66,6 +68,11 @@ test('App manifest accepts an independent package and rejects invalid publicatio
       { catalog: null },
       { catalog: [] },
       { catalog: { ...catalog, description: '' } },
+      { catalog: { ...catalog, description_i18n: null } },
+      { catalog: { ...catalog, description_i18n: [] } },
+      { catalog: { ...catalog, description_i18n: { 'zh-cn': ' ' } } },
+      { catalog: { ...catalog, description_i18n: { 'zh-cn': 1 } } },
+      { catalog: { ...catalog, description_i18n: { fr: 'Demo' } } },
       { catalog: { ...catalog, author: 1 } },
       { catalog: { ...catalog, category: [] } },
       { catalog: { ...catalog, category: ['invalid'] } },

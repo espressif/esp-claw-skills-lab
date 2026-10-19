@@ -11,7 +11,10 @@
     "category": ["utility"],
     "tags": [],
     "peripherals": ["display"],
-    "simulator": true
+    "simulator": true,
+    "description_i18n": {
+      "zh-cn": "在设备上生成随机迷宫，观看迷宫绘制与自动寻路动画，所有计算均在本地完成。"
+    }
   },
   "icon": "assets/icon.jpg"
 }

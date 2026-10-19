@@ -12,7 +12,10 @@
     "tags": ["reaction", "tap", "arcade", "touch"],
     "peripherals": ["display"],
     "simulator": true,
-    "author": "superjames"
+    "author": "superjames",
+    "description_i18n": {
+      "zh-cn": "等待信号变绿后尽快点击，在五轮挑战中测试你的反应速度。"
+    }
   },
   "icon": "assets/icon.jpg"
 }

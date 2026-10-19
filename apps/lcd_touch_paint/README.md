@@ -1,21 +1,21 @@
-# 触摸绘画
+# Screen Paint
 
-选择颜色与笔刷后拖动绘画；CLEAR 清空画布，× 返回 Launcher。
+Choose a color and brush, then drag to paint. CLEAR resets the canvas; X returns to the Launcher.
 
-## 运行要求
+## Requirements
 
-需要屏幕和触摸输入。
+Requires a display and touch input.
 
-## 操作
+## Controls
 
-选择颜色和笔刷后在画布拖动；CLEAR 清空画布，右上角 × 返回 Launcher。清空与退出在松手时生效，拖离按钮取消。小屏将色盘和笔刷分行排列，避免重叠。需要至少 160×160 的触摸屏。
+Choose a color and brush, then drag across the canvas. CLEAR resets the canvas, and the top-right X returns to the Launcher. Clear and exit activate on release; dragging away from the button cancels the action. Small screens place the palette and brushes on separate rows to avoid overlap. Requires a touch display of at least 160×160.
 
-## 安装与启动
+## Installation and launch
 
-将完整的 `lcd_touch_paint/` 包安装到设备 DATA 根目录下的 `apps/`，再通过 `publish_app` 发布。DATA 根目录应通过设备存储接口解析，不要固定为 `/fatfs`。安装时先写脚本与资源，最后写 `launcher.json`。从设备 Launcher 点击应用启动。
+Install the complete `lcd_touch_paint/` package under `apps/` in the device's DATA root, then publish it with `publish_app`. Resolve the DATA root through the device storage API rather than assuming `/fatfs`. Write scripts and assets first, then `launcher.json`. Tap the App in the device Launcher to start it.
 
-`launcher.json` 保存启动配置，内嵌 `catalog` 保存本站目录信息；本文件是使用说明。App 不需要 `SKILL.md`。
+`launcher.json` contains launch settings and an embedded `catalog` object for the site listing. This file provides usage instructions. The App does not need `SKILL.md`.
 
-## 实现说明
+## Implementation
 
-复制上游 system/apps/lcd_touch_paint，保留原始 launcher.json 和图标。脚本将首次绘制纳入异常保护，确保初始绘制失败时也释放屏幕。
+Adapted from upstream `system/apps/lcd_touch_paint`, retaining its launcher configuration and icon. The initial draw is protected by error handling so the display is released even if the first frame fails.

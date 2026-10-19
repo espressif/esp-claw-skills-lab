@@ -7,12 +7,15 @@
   "order": 15,
   "visible": true,
   "catalog": {
-    "description": "MOMENT 双主题立体时钟：陶瓷表盘、触摸视差与旋钮专注计时，可在线试玩。",
+    "description": "MOMENT brings light and dark clock faces, a ceramic dial with touch-controlled parallax, and a rotary focus timer. Try it in your browser.",
     "author": "ESP-Claw contributor",
     "simulator": true,
     "category": ["utility", "ui"],
     "tags": ["clock", "watchface", "focus", "timer", "interaction"],
-    "peripherals": ["display"]
+    "peripherals": ["display"],
+    "description_i18n": {
+      "zh-cn": "MOMENT 双主题时钟：陶瓷表盘、触摸视差和旋钮专注计时，支持浏览器试玩。"
+    }
   },
   "icon": "assets/icon.jpg"
 }

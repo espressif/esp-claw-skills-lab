@@ -66,6 +66,15 @@ export function readAppPackage(dir: string) {
   const catalog = manifest.catalog
   if (!object(catalog) || typeof catalog.description !== 'string' || !catalog.description.trim())
     return fail('launcher.catalog requires a description')
+  if (catalog.description_i18n !== undefined) {
+    if (
+      !object(catalog.description_i18n) ||
+      Object.entries(catalog.description_i18n).some(
+        ([language, text]) => language !== 'zh-cn' || typeof text !== 'string' || !text.trim(),
+      )
+    )
+      fail('catalog.description_i18n must contain non-empty zh-cn text')
+  }
   if (catalog.author !== undefined && typeof catalog.author !== 'string')
     fail('catalog author must be a string')
   if (catalog.simulator !== undefined && typeof catalog.simulator !== 'boolean')
