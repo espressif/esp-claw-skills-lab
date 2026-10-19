@@ -8,11 +8,14 @@
   "order": 10,
   "visible": true,
   "catalog": {
-    "description": "点击或按键开始、跳跃和重试；支持暂停/继续，右上角 × 返回 Launcher。",
+    "description": "Tap the screen or press a button to start, jump, and retry. Pause or resume anytime; tap the top-right X to return to the Launcher.",
     "author": "ESP-Claw contributor",
     "simulator": true,
     "category": ["game", "ui"],
     "tags": ["dino", "touch", "button", "gpio", "runner"],
-    "peripherals": ["display"]
+    "peripherals": ["display"],
+    "description_i18n": {
+      "zh-cn": "点击屏幕或按键开始、跳跃和重试。支持暂停与继续，点击右上角 X 返回启动器。"
+    }
   }
 }

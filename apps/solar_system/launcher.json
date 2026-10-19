@@ -8,8 +8,11 @@
   "visible": true,
   "icon": "assets/icon.jpg",
   "catalog": {
-    "description": "展示太阳系行星及轨道，支持单指旋转、双指缩放和平移。",
+    "description": "Explore the planets and orbits of the solar system. Drag with one finger to rotate, or use two fingers to zoom and pan.",
     "category": ["ui"],
-    "peripherals": ["display"]
+    "peripherals": ["display"],
+    "description_i18n": {
+      "zh-cn": "探索太阳系行星及其轨道，单指拖动旋转视角，双指缩放和平移。"
+    }
   }
 }

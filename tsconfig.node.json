@@ -8,6 +8,8 @@
     "playwright.config.*",
     "eslint.config.*",
     "build/**/*",
+    "server/**/*",
+    "functions/**/*",
     "scripts/**/*"
   ],
   "compilerOptions": {

@@ -8,11 +8,14 @@
   "order": 12,
   "visible": true,
   "catalog": {
-    "description": "选择颜色和笔刷后拖动绘画；CLEAR 清空画布，右上角 × 返回 Launcher，支持小屏工具栏。",
+    "description": "Choose a color and brush, then drag to paint. CLEAR resets the canvas; the top-right X returns to the Launcher. Includes a toolbar for small screens.",
     "author": "ESP-Claw contributor",
     "simulator": true,
     "category": ["utility", "ui"],
     "tags": ["paint", "drawing", "touch", "demo"],
-    "peripherals": ["display"]
+    "peripherals": ["display"],
+    "description_i18n": {
+      "zh-cn": "选择颜色和笔刷后拖动绘画。CLEAR 清空画布，右上角 X 返回启动器；支持小屏工具栏。"
+    }
   }
 }

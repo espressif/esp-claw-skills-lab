@@ -14,7 +14,10 @@
     "tags": ["snake", "arcade", "touch", "swipe", "sound"],
     "peripherals": ["display"],
     "simulator": true,
-    "author": "ESP-Claw contributor"
+    "author": "ESP-Claw contributor",
+    "description_i18n": {
+      "zh-cn": "在深色棋盘上操控薄荷绿小蛇，收集橙色果实，体验灵敏的触摸操作与可选音效。"
+    }
   },
   "icon": "assets/icon.jpg"
 }

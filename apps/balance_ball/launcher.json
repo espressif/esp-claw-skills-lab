@@ -7,11 +7,14 @@
   "order": 13,
   "visible": true,
   "catalog": {
-    "description": "倾斜开发板使球进入目标圈，停留后得分；支持暂停/继续，右上角 × 返回 Launcher。",
+    "description": "Tilt the device to guide the ball into the target ring and hold it there to score. Pause or resume anytime; tap the top-right X to return to the Launcher.",
     "author": "ESP-Claw contributor",
     "category": ["game"],
     "peripherals": ["display"],
-    "tags": ["imu", "ball", "tilt", "balance"]
+    "tags": ["imu", "ball", "tilt", "balance"],
+    "description_i18n": {
+      "zh-cn": "倾斜设备让小球进入目标环，保持片刻即可得分。支持暂停和继续，点击右上角 X 返回启动器。"
+    }
   },
   "icon": "assets/icon.jpg"
 }

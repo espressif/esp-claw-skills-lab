@@ -1,9 +1,9 @@
 # Snake Animation
 
-自动运行的贪吃蛇动画。
+Watch a continuously running, automatic Snake game animation.
 
-从设备 Launcher 启动。显示屏。退出可使用设备 Launcher 的返回操作。
+Launch from the device Launcher. Requires a display. Use the device Launcher's back action to exit.
 
-配置写在 `launcher.json.args`，默认无需修改。通过 `launcher.json.args` 调整脚本的网格、颜色和动画参数；此应用不提供手动操控。
+Configure options in `launcher.json.args`; the defaults work without changes. Adjust the script's grid, colors, and animation settings through these options. This App does not provide manual controls.
 
-已开放浏览器模拟入口；音频和传感器效果以真机为准，本次 API 迁移尚未运行验证。
+A browser simulator is available. Audio and sensor behavior depend on the physical device; runtime validation of this API migration is still pending.

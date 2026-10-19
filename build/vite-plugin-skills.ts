@@ -6,6 +6,7 @@ import { parseSkillDocument } from './skill-package'
 import { readAppPackage } from './app-package'
 import type { Plugin, ViteDevServer } from 'vite'
 import { FEATURED_SKILLS } from '../src/config/allowlist'
+import { isAppLanguagePath, serveAppLanguage } from '../server/app-language'
 
 const INDEX_FILES = ['skills-data.json', 'apps-data.json', 'catalog-data.json', 'tags.json']
 
@@ -189,7 +190,7 @@ function contentTypeFor(filePath: string): string {
   return map[ext] ?? 'application/octet-stream'
 }
 
-/** Dev-only: mirror production static `/raw/*` (see writeBundle → dist/raw). */
+/** Dev-only: serve package files from the same paths as production. */
 function rawSkillsMiddleware(skillsDir: string, prefix = '/raw/'): Connect.NextHandleFunction {
   const root = skillsRootResolved(skillsDir)
 
@@ -248,11 +249,44 @@ export default function skillsPlugin(): Plugin {
   const skillsDir = path.resolve(process.cwd(), 'skills')
   const appsDir = path.resolve(process.cwd(), 'apps')
   const generatedDir = path.resolve(process.cwd(), 'src/generated')
+  const localizedDir = path.join(generatedDir, 'i18n/zh-cn')
+  const localizedRoutes: string[] = []
 
   return {
     name: 'vite-plugin-skills',
     enforce: 'pre',
     configureServer(server: ViteDevServer) {
+      server.middlewares.use(async (req, res, next) => {
+        try {
+          const url = new URL(req.url ?? '/', 'http://localhost')
+          if (!isAppLanguagePath(url.pathname)) return next()
+          // LAN requests have no trusted country; explicit language remains available.
+          const request = new Request(url, {
+            method: req.method,
+            headers: { 'Accept-Language': req.headers['accept-language'] ?? '' },
+          })
+          const response = await serveAppLanguage(request, async (asset) => {
+            const relative = new URL(asset.url).pathname.slice('/raw/'.length)
+            const file = relative.startsWith('apps/')
+              ? path.join(appsDir, relative.slice('apps/'.length))
+              : path.join(generatedDir, relative)
+            try {
+              return new Response(fs.readFileSync(file, 'utf-8'), {
+                headers: { 'Content-Type': 'application/json; charset=utf-8' },
+              })
+            } catch (error) {
+              if ((error as NodeJS.ErrnoException).code === 'ENOENT')
+                return new Response(null, { status: 404 })
+              throw error
+            }
+          })
+          res.statusCode = response.status
+          response.headers.forEach((value, name) => res.setHeader(name, value))
+          res.end(Buffer.from(await response.arrayBuffer()))
+        } catch (error) {
+          next(error)
+        }
+      })
       server.middlewares.use((req, res, next) => {
         const filename = req.url?.split('?')[0].replace(/^\/raw\//, '')
         if (req.url?.startsWith('/raw/') && filename && INDEX_FILES.includes(filename)) {
@@ -264,9 +298,13 @@ export default function skillsPlugin(): Plugin {
       server.middlewares.use(rawSkillsMiddleware(skillsDir))
     },
     buildStart() {
+      localizedRoutes.length = 0
       fs.mkdirSync(generatedDir, { recursive: true })
+      fs.rmSync(localizedDir, { recursive: true, force: true })
+      fs.mkdirSync(localizedDir, { recursive: true })
 
       const skills: SkillEntry[] = []
+      const localizedSkills: SkillEntry[] = []
       for (const kind of ['skill', 'app'] as const) {
         const root = kind === 'app' ? appsDir : skillsDir
         if (!fs.existsSync(root)) continue
@@ -279,6 +317,7 @@ export default function skillsPlugin(): Plugin {
           let title: string
           let icon: string | undefined
           if (kind === 'app') {
+            localizedRoutes.push(`/raw/apps/${entry.name}/_metadata.json`)
             const app = readAppPackage(skillDir)
             fm = { ...app.catalog, metadata: app.metadata, name: entry.name }
             title = String(app.manifest.display_name || entry.name)
@@ -324,6 +363,10 @@ export default function skillsPlugin(): Plugin {
           }
 
           skills.push(skillData)
+          const translations =
+            kind === 'app' ? (fm.description_i18n as Record<string, string> | undefined) : undefined
+          const localizedDescription = translations?.['zh-cn'] || skillData.description
+          localizedSkills.push({ ...skillData, description: localizedDescription })
 
           const metadataJson = {
             simulator: kind === 'app' && fm.simulator === true,
@@ -341,6 +384,15 @@ export default function skillsPlugin(): Plugin {
             JSON.stringify(metadataJson, null, 2),
             'utf-8',
           )
+          if (kind === 'app') {
+            const appDir = path.join(localizedDir, 'apps', entry.name)
+            fs.mkdirSync(appDir, { recursive: true })
+            fs.writeFileSync(
+              path.join(appDir, '_metadata.json'),
+              JSON.stringify({ ...metadataJson, description: localizedDescription }),
+              'utf-8',
+            )
+          }
         }
       }
       for (const kind of ['skill', 'app'] as const) {
@@ -360,6 +412,16 @@ export default function skillsPlugin(): Plugin {
         JSON.stringify(buildTagsIndex(skills)),
         'utf-8',
       )
+      fs.writeFileSync(
+        path.join(localizedDir, 'apps-data.json'),
+        JSON.stringify(localizedSkills.filter((entry) => entry.kind === 'app')),
+        'utf-8',
+      )
+      fs.writeFileSync(
+        path.join(localizedDir, 'catalog-data.json'),
+        JSON.stringify(localizedSkills),
+        'utf-8',
+      )
     },
 
     writeBundle(options) {
@@ -371,6 +433,17 @@ export default function skillsPlugin(): Plugin {
       for (const file of INDEX_FILES) {
         fs.copyFileSync(path.join(generatedDir, file), path.join(rawDest, file))
       }
+      copyDir(localizedDir, path.join(rawDest, 'i18n/zh-cn'))
+      // Keep package downloads on Pages' static asset service.
+      fs.writeFileSync(
+        path.join(outDir, '_routes.json'),
+        JSON.stringify({
+          version: 1,
+          include: ['/raw/apps-data.json', '/raw/catalog-data.json', ...localizedRoutes],
+          exclude: [],
+        }),
+        'utf-8',
+      )
     },
   }
 }

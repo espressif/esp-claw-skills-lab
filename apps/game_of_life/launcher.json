@@ -23,7 +23,10 @@
     ],
     "peripherals": ["display"],
     "simulator": true,
-    "author": "superjames"
+    "author": "superjames",
+    "description_i18n": {
+      "zh-cn": "全屏彩虹生命游戏，采用 Conway B3/S23 规则。点击播种，拖动绘制或擦除，长按重置。适配 QSPI AMOLED 的整帧刷新；摇动打散需要 Lua IMU 模块，当前不提供该模块的 Mosaico 固件暂不支持。优先使用触摸屏。"
+    }
   },
   "icon": "assets/icon.jpg"
 }

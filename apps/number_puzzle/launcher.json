@@ -14,7 +14,10 @@
     "tags": ["15-puzzle", "number puzzle", "sliding puzzle", "touch", "animation", "sound"],
     "peripherals": ["display"],
     "simulator": true,
-    "author": "ESP-Claw contributor"
+    "author": "ESP-Claw contributor",
+    "description_i18n": {
+      "zh-cn": "触摸或滑动移动数字方块，挑战经典十五数码拼图，配有像素风格音效。"
+    }
   },
   "icon": "assets/icon.jpg"
 }

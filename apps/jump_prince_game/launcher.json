@@ -12,7 +12,10 @@
     "tags": ["jump", "platformer", "arcade", "touch", "charge"],
     "peripherals": ["display"],
     "simulator": true,
-    "author": "ESP-Claw contributor"
+    "author": "ESP-Claw contributor",
+    "description_i18n": {
+      "zh-cn": "按住 LEFT、RIGHT 或 JUMP 蓄力，松手跳跃，挑战 Jump Prince 的关卡。"
+    }
   },
   "icon": "assets/icon.jpg"
 }

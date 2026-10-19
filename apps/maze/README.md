@@ -1,9 +1,9 @@
 # Maze
 
-观看随机迷宫生成和寻路动画。
+Watch random mazes being generated and solved with animation.
 
-从设备 Launcher 启动。显示屏。退出可使用设备 Launcher 的返回操作。
+Launch from the device Launcher. Requires a display. Use the device Launcher's back action to exit.
 
-配置写在 `launcher.json.args`，默认无需修改。`columns`、`rows` 设置网格，`frame_delay_ms`、`solve_delay_ms` 调整动画速度，`repeat_count = 0` 持续循环。
+Configure options in `launcher.json.args`; the defaults work without changes. `columns` and `rows` set the grid size. `frame_delay_ms` and `solve_delay_ms` adjust animation speed. Set `repeat_count = 0` to loop continuously.
 
-已开放浏览器模拟入口；音频和传感器效果以真机为准，本次 API 迁移尚未运行验证。
+A browser simulator is available. Audio and sensor behavior depend on the physical device; runtime validation of this API migration is still pending.

@@ -1,27 +1,27 @@
-# 重力滚球
+# Balance Ball
 
-倾斜开发板使球进入目标圈，停留后得分。触摸右上角 × 返回 Launcher。
+Tilt the device to guide the ball into the target ring and hold it there to score. Tap the top-right X to return to the Launcher.
 
-## 运行要求
+## Requirements
 
-需要屏幕及板级 imu_sensor。无触摸设备可通过运行时取消 App。
+Requires a display and the board's `imu_sensor`. On devices without touch input, cancel the App through the runtime.
 
-## 操作
+## Controls
 
-倾斜设备使球进入目标环，底部进度条显示停留进度。右上角 × 返回 Launcher，旁边按钮暂停/继续；暂停时保留球的位置、速度与得分。控制按钮松手生效，拖离取消。无触摸设备可通过运行时取消 App。
+Tilt the device to move the ball into the target ring. The bottom progress bar shows how long you have held it there. The top-right X returns to the Launcher; the adjacent button pauses or resumes play. Pausing preserves the ball's position, velocity, and score. Controls activate on release; dragging away cancels the action. On devices without touch input, cancel the App through the runtime.
 
-默认轴向为 `invert_x=true`、`invert_y=false`、`swap_xy=false`。默认驱动力 `accel_k=5.0`，每帧速度保留系数 `friction=0.85`，提高倾斜响应并减少放平后的滑行。若安装朝向不同，可调整轴向参数；`friction` 越小，减速越快。已有启动参数会覆盖这些默认值。
+The default axis settings are `invert_x=true`, `invert_y=false`, and `swap_xy=false`. The default acceleration factor is `accel_k=5.0`, and the velocity retained per frame is `friction=0.85`, providing responsive tilt control and reducing drift when the device is level. Adjust the axis settings for a different mounting orientation. Lower `friction` values slow the ball more quickly. Explicit launch options override these defaults.
 
-## 安装与启动
+## Installation and launch
 
-将完整的 `balance_ball/` 包安装到设备 DATA 根目录下的 `apps/`，再通过 `publish_app` 发布。DATA 根目录应通过设备存储接口解析，不要固定为 `/fatfs`。安装时先写脚本与资源，最后写 `launcher.json`。从设备 Launcher 点击应用启动。
+Install the complete `balance_ball/` package under `apps/` in the device's DATA root, then publish it with `publish_app`. Resolve the DATA root through the device storage API rather than assuming `/fatfs`. Write scripts and assets first, then `launcher.json`. Tap the App in the device Launcher to start it.
 
-`launcher.json` 保存启动配置，内嵌 `catalog` 保存本站目录信息；本文件是使用说明。App 不需要 `SKILL.md`。
+`launcher.json` contains launch settings and an embedded `catalog` object for the site listing. This file provides usage instructions. The App does not need `SKILL.md`.
 
-## 实现说明
+## Implementation
 
-使用 display.open()、screen:begin()/present() 和 imu.new({ device = "imu_sensor" })/read()/close()。默认持续运行，退出或异常时释放屏幕与 IMU。
+Uses `display.open()`, `screen:begin()/present()`, and `imu.new({ device = "imu_sensor" })/read()/close()`. Runs continuously by default and releases the display and IMU on exit or error.
 
-## 启动参数
+## Launch options
 
-可在 `launcher.json` 的 `args` 中配置 `run_ms`（默认 0，持续运行）、`frame_ms`、`lsb_per_g`（默认 16384，对应 Mosaico 板载 BMI270 的 ±2g 量程；其他板卡需按实际量程配置）、`invert_x`、`invert_y`、`swap_xy`、`ball_r`、`target_r`、`accel_k`、`friction`、`bounce`、`max_speed` 和 `hold_frames`。数值参数必须在脚本声明的范围内。
+Set options in `launcher.json.args`: `run_ms` (default 0, continuous operation), `frame_ms`, `lsb_per_g` (default 16384 for the Mosaico BMI270's ±2g range; use the actual range for other boards), `invert_x`, `invert_y`, `swap_xy`, `ball_r`, `target_r`, `accel_k`, `friction`, `bounce`, `max_speed`, and `hold_frames`. Numeric values must stay within the ranges declared in the script.

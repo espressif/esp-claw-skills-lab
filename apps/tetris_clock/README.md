@@ -1,9 +1,9 @@
 # Tetris Clock
 
-用落下的俄罗斯方块拼出当前时间。
+Watch falling Tetris blocks assemble the current time.
 
-从设备 Launcher 启动。显示屏；需设备系统时间正确。退出可使用设备 Launcher 的返回操作。
+Launch from the device Launcher. Requires a display and a correctly set device clock. Use the device Launcher's back action to exit.
 
-配置写在 `launcher.json.args`，默认无需修改。`twenty_four_hour`、`leading_zero`、`show_date` 控制格式，`color_scheme` 选择主题，`frame_rate` 控制帧率，`duration_ms = 0` 持续显示。
+Configure options in `launcher.json.args`; the defaults work without changes. `twenty_four_hour`, `leading_zero`, and `show_date` control the time and date format. `color_scheme` selects the theme, and `frame_rate` controls the frame rate. Set `duration_ms = 0` for continuous display.
 
-已开放浏览器模拟入口；音频和传感器效果以真机为准，本次 API 迁移尚未运行验证。
+A browser simulator is available. Audio and sensor behavior depend on the physical device; runtime validation of this API migration is still pending.
