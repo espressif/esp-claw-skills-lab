@@ -10,6 +10,11 @@
 | `flappybird`            | 飞鸟游戏             | 支持，无声         |
 | `codex_usage_dashboard` | 额度看板             | 支持，使用示例数据 |
 | `balance_ball`          | IMU 平衡球           | 不支持             |
+| `balance_drop`          | Balance Challenge    | 暂未开放           |
+| `shake_dice`            | Shake Dice           | 暂未开放           |
+| `flip_hourglass`        | Flip Hourglass       | 暂未开放           |
+| `gravity_maze`          | Gravity Maze         | 暂未开放           |
+| `pocket_aquarium`       | Pocket Aquarium      | 暂未开放           |
 | `game_2048`             | 2048                 | 已开放             |
 | `game_of_life`          | Game of Life         | 已开放             |
 | `jump_prince_game`      | Jump Prince          | 已开放             |

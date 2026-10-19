@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "id": "flip_hourglass",
+  "entry": "scripts/main.lua",
+  "display_name": "Flip Hourglass",
+  "args": {},
+  "order": 24,
+  "visible": true,
+  "icon": "assets/icon.jpg",
+  "catalog": {
+    "description": "Flip to restart the timer. Choose 1, 3, 5, or 10 minutes, with pause and resume.",
+    "category": ["utility"],
+    "peripherals": ["display"],
+    "tags": ["imu", "motion", "audio"]
+  }
+}

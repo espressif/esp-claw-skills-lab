@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "id": "pocket_aquarium",
+  "entry": "scripts/main.lua",
+  "display_name": "Pocket Aquarium",
+  "args": {},
+  "order": 26,
+  "visible": true,
+  "icon": "assets/icon.jpg",
+  "catalog": {
+    "description": "Tilt to move the water and fish, tap to feed, and switch between day and night.",
+    "category": ["ui"],
+    "peripherals": ["display"],
+    "tags": ["imu", "motion", "audio"]
+  }
+}

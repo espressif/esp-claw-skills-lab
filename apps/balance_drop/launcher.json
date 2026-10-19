@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "id": "balance_drop",
+  "entry": "scripts/main.lua",
+  "display_name": "Balance Challenge",
+  "args": {},
+  "order": 22,
+  "visible": true,
+  "icon": "assets/icon.jpg",
+  "catalog": {
+    "description": "Chase targets, build combos, and master 3 stages in 45 seconds. Includes calm practice mode.",
+    "category": ["game"],
+    "peripherals": ["display"],
+    "tags": ["imu", "motion", "audio"]
+  }
+}

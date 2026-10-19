@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "id": "gravity_maze",
+  "entry": "scripts/main.lua",
+  "display_name": "Gravity Maze",
+  "args": {},
+  "order": 25,
+  "visible": true,
+  "icon": "assets/icon.jpg",
+  "catalog": {
+    "description": "Tilt to guide the ball through 8 mazes with traps and checkpoints.",
+    "category": ["game"],
+    "peripherals": ["display"],
+    "tags": ["imu", "motion", "audio"]
+  }
+}
