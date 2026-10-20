@@ -3,7 +3,11 @@ import path from 'node:path'
 import { parseSkillDocument } from '../build/skill-package'
 import { ALLOWED_CATEGORIES, ALLOWED_PERIPHERALS } from '../src/config/allowlist'
 
-const skillsDir = path.resolve(import.meta.dirname, '..', 'skills')
+const skillsDir = path.resolve(process.argv[2] ?? path.join(import.meta.dirname, '..', 'skills'))
+if (process.argv[2] && !fs.existsSync(skillsDir)) {
+  console.error(`Skill collection directory does not exist: ${skillsDir}`)
+  process.exit(1)
+}
 
 interface ValidationError {
   skill: string
@@ -41,7 +45,9 @@ if (!fs.existsSync(skillsDir)) {
   process.exit(0)
 }
 
-const entries = fs.readdirSync(skillsDir, { withFileTypes: true }).filter((e) => e.isDirectory())
+const entries = fs
+  .readdirSync(skillsDir, { withFileTypes: true })
+  .filter((e) => e.isDirectory() || e.isSymbolicLink())
 
 if (entries.length === 0) {
   console.log('No skill subdirectories found.')
@@ -64,12 +70,26 @@ for (const entry of entries) {
   let content: string
 
   try {
+    // Reject links before reading package content, including unreferenced assets.
+    function checkTree(file: string) {
+      const stat = fs.lstatSync(file)
+      if (stat.isSymbolicLink())
+        throw new Error(`symbolic links are not allowed: ${path.relative(skillDir, file) || '.'}`)
+      if (stat.isDirectory()) {
+        for (const name of fs.readdirSync(file)) checkTree(path.join(file, name))
+      } else if (!stat.isFile()) {
+        throw new Error(`unsupported file type: ${path.relative(skillDir, file)}`)
+      }
+    }
+    checkTree(skillDir)
+    if (fs.existsSync(path.join(skillDir, 'launcher.json')))
+      throw new Error('a Skill must not also be published as an App')
     const raw = fs.readFileSync(skillMdPath, 'utf-8')
     const parsed = parseSkillDocument(raw)
     frontmatter = parsed.frontmatter
     content = parsed.content
   } catch (e) {
-    addError(skillId, `Invalid Skill document: ${e instanceof Error ? e.message : String(e)}`)
+    addError(skillId, `Invalid Skill package: ${e instanceof Error ? e.message : String(e)}`)
     continue
   }
 
