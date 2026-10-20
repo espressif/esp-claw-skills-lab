@@ -20,5 +20,9 @@ To check packages and build the site:
 
 ```sh
 pnpm validate-packages
+pnpm test
+pnpm test-apps # Requires Lua 5.4 or later as `lua`.
 pnpm build
 ```
+
+`pnpm build` validates packages before building the site. The pre-commit hook checks formatting and packages without rewriting files; use `pnpm format` to apply formatting fixes. Pull requests also run the TypeScript and Lua regression tests.

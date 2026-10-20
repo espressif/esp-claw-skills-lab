@@ -1,2 +1,2 @@
-pnpm format
+pnpm exec oxfmt --check
 pnpm validate-packages
