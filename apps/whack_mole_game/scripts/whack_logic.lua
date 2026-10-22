@@ -6,8 +6,8 @@ local M = {}
 M.HOLE_COUNT   = 9
 M.GAME_MS      = 30000
 M.TIMER_MS     = 50
-M.SPAWN_MIN_MS = 500
-M.SPAWN_MAX_MS = 1000
+M.SPAWN_MIN_MS = 1200
+M.SPAWN_MAX_MS = 1800
 M.BOMB_PCT     = 30
 M.MOLE_PTS     = 100
 M.BOMB_PTS     = -200
@@ -106,6 +106,7 @@ function M.spawn(g)
 end
 
 function M.start(g)
+    g.sound = "start"
     g.state = M.STATE_RUNNING
     g.elapsed_ms = 0
     g.spawn_elapsed_ms = 0
@@ -120,6 +121,7 @@ function M.start(g)
 end
 
 function M.finish(g)
+    g.sound = "finish"
     g.state = M.STATE_FINISHED
     g.elapsed_ms = M.GAME_MS
     g.active_index = -1
@@ -134,11 +136,15 @@ function M.update(g, dt)
     if dt < 0 then dt = 0 end
     if dt > 250 then dt = 250 end
 
+    local previous_second = math.ceil((M.GAME_MS - g.elapsed_ms) / 1000)
     g.elapsed_ms = g.elapsed_ms + dt
     if g.elapsed_ms >= M.GAME_MS then
         M.finish(g)
         return
     end
+
+    local second = math.ceil((M.GAME_MS - g.elapsed_ms) / 1000)
+    if second <= 5 and second < previous_second and not g.sound then g.sound = "tick" end
 
     g.spawn_elapsed_ms = g.spawn_elapsed_ms + dt
     if g.spawn_elapsed_ms >= g.spawn_target_ms then
@@ -159,11 +165,13 @@ function M.hit(g, index)
         return false
     end
     if g.active_is_bomb then
+        g.sound = "bomb"
         g.score = g.score + M.BOMB_PTS
         g.combo = 0
     else
         g.score = g.score + M.MOLE_PTS
         g.combo = g.combo + 1
+        g.sound = g.combo % 5 == 0 and "combo" or "hit" .. math.min(3, g.combo)
     end
     M.spawn(g)
     return true

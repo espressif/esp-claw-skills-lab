@@ -10,7 +10,7 @@
     "description": "Play Whack-a-Mole on the device display: tap raised moles, avoid bombs, beat the 30s clock.",
     "category": ["game", "ui"],
     "tags": ["mole", "arcade", "touch", "bomb", "combo"],
-    "peripherals": ["display"],
+    "peripherals": ["display", "speaker"],
     "simulator": true,
     "author": "superjames",
     "description_i18n": {
