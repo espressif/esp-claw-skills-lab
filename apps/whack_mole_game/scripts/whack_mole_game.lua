@@ -10,6 +10,7 @@ local delay = require("delay")
 local lvgl = require("lvgl")
 local system = require("system")
 local logic = require("whack_logic")
+local Sound = require("whack_sound")
 
 -- WASM lvgl userdata has no __newindex (obj._role) and some builds
 -- fail method lookup; never let that kill the skill.
@@ -983,57 +984,32 @@ local function refresh()
     end
 end
 
--- Hosted simulator may freeze system.millis, os.clock, AND delay.delay_ms
--- (lv_tick_inc is never called). Never busy-wait on those clocks.
+-- Use the device clock; os.clock measures CPU time, not elapsed time.
 local function wall_ms()
-    local t = math.floor(tonumber(system.millis()) or 0)
-    if t > 0 then return t end
-    if os and os.clock then
-        local c = os.clock()
-        if type(c) == "number" and c > 0 then
-            return math.floor(c * 1000)
-        end
-    end
-    return 0
+    return math.floor(tonumber(system.millis()) or 0)
 end
 
-local function wait_frame(clock_ok)
-    if clock_ok then
-        delay.delay_ms(16)
-        return
-    end
-    lvgl.process_events(0)
-end
-
+local sound = Sound.new()
 scr:load()
 logic.start(game)
 refresh()
 
 local last_ms = wall_ms()
-local clock_ok = last_ms > 0
-local frames = 0
-while running do
-    lvgl.process_events(0)
-    local now_ms = wall_ms()
-    local dt
-    if clock_ok and now_ms > last_ms then
-        dt = math.floor(now_ms - last_ms)
+local ok_run, err_run = xpcall(function()
+    while running do
+        -- Always yield, even when consecutive clock readings are identical.
+        delay.delay_ms(16)
+        lvgl.process_events(0)
+        local now_ms = wall_ms()
+        local dt = math.max(0, now_ms - last_ms)
         last_ms = now_ms
-        if dt < 1 then dt = 16 end
-        if dt > 250 then dt = 16 end
-    else
-        clock_ok = false
-        dt = 16
+        logic.update(game, dt)
+        sound:update(game, now_ms)
+        refresh()
     end
-    logic.update(game, dt)
-    frames = frames + 1
-    if frames == 1 or frames % 40 == 0 then
-        print(string.format("whack tick f=%d elapsed=%d left=%d",
-            frames, game.elapsed_ms, logic.remaining_s(game)))
-    end
-    refresh()
-    wait_frame(clock_ok)
-end
+end, debug.traceback)
+sound:close()
 pcall(function()
     if lvgl.deinit then lvgl.deinit() end
 end)
+if not ok_run then error(err_run, 0) end
