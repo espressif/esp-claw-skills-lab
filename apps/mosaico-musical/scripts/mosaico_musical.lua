@@ -1,14 +1,16 @@
--- mosaico_musical.lua: raw `display` guitar page for the 480x480 Mosaico face.
+-- mosaico_musical.lua: raw `display` guitar page for Mosaico and vocat displays.
 -- Owns display lifecycle only; chord/gesture state lives in guitar_logic and
 -- input normalization lives in touch_adapter. Never mixes lvgl with display.
 --
--- Audio mixes the sample bank in Lua using the board output format.
+-- Native audio owns sample mixing and output pacing.
 
 local display = require("display")
 local canvas
+local ui_font
 -- Keep alignment local; the display API draws text at an explicit origin.
 local function aligned_text(x, y, w, h, text, opts)
     opts = opts or {}
+    if text:find("[\128-\255]") then opts.font = ui_font end
     opts.font_size = math.max(8, math.min(64, math.floor(opts.font_size or 24)))
     if opts.bg then canvas:fill_rect(math.floor(x), math.floor(y), math.floor(w), math.floor(h), opts.bg) end
     local tw, th = canvas:measure_text(text, opts)
@@ -22,7 +24,8 @@ local delay = require("delay")
 local logic = require("guitar_logic")
 local touch_adapter = require("touch_adapter")
 local sample_loader = require("sample_loader")
-local sample_engine = require("sample_engine")
+local song_player = require("song_player")
+local player = song_player.new()
 local pairing_adapter = require("pairing_adapter")
 
 local system_ok, system = pcall(require, "system")
@@ -39,15 +42,15 @@ local COLORS = {
     accent = "#58D5C4",
 }
 
--- The layout is authored for exactly this viewport; see init_display.
-local DESIGN_WIDTH = 480
-local DESIGN_HEIGHT = 480
+-- Keep controls readable on the smallest supported display.
+local MIN_WIDTH = 360
+local MIN_HEIGHT = 360
 local FRAME_MS = 33
 -- Floor for the frame delay. delay_ms checks the stop flag even for a zero
 -- delay, so this is not about stop delivery: it keeps an over-budget frame
 -- from turning the render loop into a busy loop that starves other tasks.
 local MIN_SLEEP_MS = 4
--- Touch and audio are serviced far more often than the panel is repainted. A
+-- Touch is polled more often than the panel is repainted. A
 -- redraw costs ~46 primitives including 13 TTF text runs, so tying input
 -- latency to the repaint rate made input feel late.
 local LOOP_MS = 8
@@ -68,9 +71,10 @@ local STRING_LABEL_WIDTH = 72
 local FRET_COUNT = 5
 local FRET_WIDTH = 3
 -- Restore the device-wide volume when this session ends.
-local AUDIO_VOLUME = 100
--- Resample the 16 kHz mono bank to the output format; use six voices.
-local MIXER_MAX_VOICES = 6
+local AUDIO_VOLUME = 70
+-- Keep instrument policy separate from the generic sample_player.
+local MIXER_MAX_VOICES = 16
+local MAX_NOTE_SECONDS = 2.5
 -- Keep audio warnings visible briefly.
 local AUDIO_WARN_MS = 1000
 local FUNCTION_GPIO = 7
@@ -78,7 +82,7 @@ local FUNCTION_ACTIVE = 0
 
 -- Audio is optional: hosted simulators often ship neither `audio` nor a codec.
 -- Missing audio leaves the instrument usable as a silent touch surface.
--- `audio_out` holds { output, engine, rate, channels, dead } once the
+-- `audio_out` holds the output, native sample_player, and UI status once the
 -- chain is up, and stays nil whenever any link is missing.
 local audio_out = nil
 
@@ -386,12 +390,138 @@ local function redraw_string_color(state, geometry, color)
     end
 end
 
+local settings = { open = false, dragging = false, captured = false, dirty = false, volume = AUDIO_VOLUME, songs = false }
+
+local function stop_song()
+    song_player.stop(player)
+    if audio_out and audio_out.engine then
+        local ok, err = audio_out.engine:clear()
+        if not ok then print("mosaico-musical: clear notes failed: " .. tostring(err)) end
+    end
+end
+
+local function settings_geometry(state)
+    local layout = state.layout
+    local x = layout.origin_x + 24
+    local w = layout.content_width - 48
+    return x, (state.height - 168) // 2, w, layout.origin_x + (layout.content_width - 184) // 2
+end
+
+local function song_panel_geometry(state)
+    local height = 96 + #song_player.songs * 64
+    return (state.height - height) // 2, height
+end
+
+local function volume_available()
+    return audio_out and not audio_out.dead and type(audio_out.output.set_volume) == "function"
+end
+
+local function draw_settings(state)
+    local x, y, w, button_x = settings_geometry(state)
+    for i, label in ipairs({ "设置", player.index and "演奏中" or "曲目" }) do
+        local bx = button_x + (i - 1) * 96
+        fill_round_rect(bx, state.height - 36, 88, 32, 10, COLORS.pad)
+        text_in(bx, state.height - 36, 88, 32, label, i == 2 and player.index and COLORS.accent or COLORS.text, 18)
+    end
+    if settings.songs then
+        local top, height = song_panel_geometry(state)
+        fill_round_rect(x, top, w, height, 16, COLORS.pad)
+        stroke_round_rect(x, top, w, height, 16, COLORS.accent)
+        text_in(x + 16, top + 8, w - 76, 36, "自动演奏", COLORS.text, 24)
+        text_in(x + w - 52, top + 8, 44, 36, "X", COLORS.text, 24)
+        for i, song in ipairs(song_player.songs) do
+            local row_y = top + 48 + (i - 1) * 64
+            fill_round_rect(x + 12, row_y, w - 24, 58, 10, player.index == i and COLORS.wood or COLORS.background)
+            text_in(x + 24, row_y + 2, w - 100, 28, song.title, COLORS.text, 20, "left")
+            text_in(x + 24, row_y + 30, w - 100, 24, song.artist .. " · " .. song.description, COLORS.muted, 14, "left")
+            text_in(x + w - 72, row_y + 10, 52, 36, player.index == i and "停止" or "播放", COLORS.accent, 18)
+        end
+        local song = song_player.songs[player.index]
+        local hint = song and (song.bpm .. " BPM · 再次点击停止") or "选择曲目开始演奏"
+        text_in(x + 12, top + height - 40, w - 24, 28, audio_out and not audio_out.dead and hint or "音频不可用", COLORS.text, 16)
+        return
+    end
+    if not settings.open then return end
+    fill_round_rect(x, y, w, 168, 16, COLORS.pad)
+    stroke_round_rect(x, y, w, 168, 16, COLORS.accent)
+    text_in(x + 16, y + 8, w - 76, 36, "Volume", COLORS.text, 24, "left")
+    text_in(x + w - 52, y + 8, 44, 36, "X", COLORS.text, 24)
+    local enabled = volume_available()
+    local color = enabled and COLORS.accent or COLORS.muted
+    local slider_x, slider_w = x + 28, w - 56
+    local position = math.floor(slider_w * settings.volume / 100)
+    fill_round_rect(slider_x, y + 87, slider_w, 6, 3, COLORS.muted)
+    fill_rect(slider_x, y + 87, position, 6, color)
+    fill_round_rect(slider_x + position - 10, y + 76, 20, 28, 10, color)
+    text_in(x + 16, y + 118, w - 32, 32, enabled and (settings.volume .. "%") or "Audio unavailable", COLORS.text, 20)
+end
+
+-- Capture the entire settings gesture so closing cannot pluck a string.
+local function handle_settings(state, event, now)
+    local x, y, w, button_x = settings_geometry(state)
+    local ex, ey = event.x or 0, event.y or 0
+    if event.type == "down" then
+        local toolbar = ey >= state.height - 36 and ey <= state.height - 4
+        local volume_hit = toolbar and ex >= button_x and ex <= button_x + 88
+        local songs_hit = toolbar and ex >= button_x + 96 and ex <= button_x + 184
+        settings.captured = settings.open or settings.songs or volume_hit or songs_hit
+        if not settings.captured then return false end
+        state.gesture = nil
+        settings.dirty = true
+        if settings.songs then
+            local top = song_panel_geometry(state)
+            if ex >= x + w - 52 and ex <= x + w - 8 and ey >= top + 8 and ey <= top + 44 then
+                settings.songs = false
+            elseif ex >= x + 12 and ex <= x + w - 12 then
+                for i = 1, #song_player.songs do
+                    local row_y = top + 48 + (i - 1) * 64
+                    if ey >= row_y and ey <= row_y + 58 then
+                        if player.index == i then
+                            stop_song()
+                        elseif audio_out and not audio_out.dead then
+                            stop_song()
+                            song_player.start(player, i, now)
+                        end
+                    end
+                end
+            end
+            return true
+        end
+        if not settings.open then
+            settings.songs, settings.open = songs_hit, not songs_hit
+            return true
+        end
+        if ex >= x + w - 52 and ex <= x + w - 8 and ey >= y + 8 and ey <= y + 44 then
+            settings.open = false
+        else
+            settings.dragging = volume_available() and ex >= x + 16 and ex <= x + w - 16 and ey >= y + 66 and ey <= y + 114
+        end
+    end
+    if not settings.captured and not settings.open and not settings.songs then return false end
+    if settings.dragging and (event.type == "down" or event.type == "move") then
+        local volume = math.max(0, math.min(100, math.floor((ex - x - 28) * 100 / (w - 56) + 0.5)))
+        if volume ~= settings.volume then
+            local ok, result, err = pcall(audio_out.output.set_volume, audio_out.output, volume)
+            if ok and result then
+                settings.volume = volume
+                settings.dirty = true
+            else
+                settings.dragging = false
+                print("mosaico-musical: volume failed: " .. tostring(ok and err or result))
+            end
+        end
+    end
+    if event.type == "up" then settings.dragging = false; settings.captured = false end
+    return true
+end
+
 local function draw_frame(state, now)
     canvas:begin({ clear = COLORS.background })
     draw_fretboard(state)
     draw_strings(state, now)
     draw_chord_pads(state)
     draw_badges(state, now)
+    draw_settings(state)
     canvas:present()
 
 end
@@ -424,6 +554,7 @@ local function draw_partial(state, now, chord_changed, prev_chord, changed)
     if relay_badges then
         draw_badges(state, now)
     end
+    draw_settings(state)
     canvas:present()
 
 end
@@ -431,9 +562,13 @@ end
 local function init_display()
     canvas = display.open()
     local info = canvas:info()
-    if info.height ~= DESIGN_HEIGHT or info.width < DESIGN_WIDTH then
-        error("mosaico-musical requires a display at least 480 wide and exactly 480 high")
+    if info.height < MIN_HEIGHT or info.width < MIN_WIDTH then
+        error("mosaico-musical requires a display at least 360 wide and 360 high")
     end
+    local source = debug.getinfo(1, "S").source:gsub("^@", "")
+    local assets = type(args) == "table" and args.assets_dir or nil
+    assets = assets or (assert(source:match("^(.*)/scripts/[^/]+$"), "app directory unavailable") .. "/assets")
+    ui_font = assert(display.load_font(assets .. "/ui-20.dfn"))
     return info.width, info.height
 end
 
@@ -492,57 +627,43 @@ local function resolve_steel_dir()
     return nil
 end
 
--- Yield while loading the sample bank so cancellation stays responsive.
-local function setup_lua_engine(output, format, previous_volume)
-    local samples, load_err = sample_loader.load(
-        resolve_steel_dir(),
-        function()
+-- Loading may yield; the sample_player owns copies before its worker starts.
+local function setup_sample_player(audio, output, previous_volume)
+    local sample_player
+    local ok, result = pcall(function()
+        sample_player = assert(audio.sample_player({
+            output = output, source_rate = sample_loader.map_rate(), max_voices = MIXER_MAX_VOICES,
+            attack_ms = 4, release_ms = 15, limit_threshold = 0.70,
+        }))
+        assert(type(sample_player.clear) == "function", "firmware requires sample_player.clear")
+        local samples, load_err = sample_loader.load(resolve_steel_dir(), function() delay.delay_ms(1) end)
+        assert(samples, load_err)
+        local loaded = 0
+        for midi, pcm in pairs(samples) do
+            assert(sample_player:load(midi, pcm:sub(1, math.floor(sample_loader.map_rate() * MAX_NOTE_SECONDS) * 2)))
+            samples[midi] = nil
+            loaded = loaded + 1
             delay.delay_ms(1)
-        end)
-    if samples == nil then
-        if previous_volume then pcall(output.set_volume, output, previous_volume) end
-        pcall(function() output:close() end)
-        return muted(load_err)
-    end
-    local engine = sample_engine.new({
-        samples = samples,
-        sample_rate = format.rate,
-        source_rate = sample_loader.map_rate(),
-        channels = format.channels,
-        max_voices = MIXER_MAX_VOICES,
-    })
-    print(string.format(
-        "mosaico-musical: lua engine up rate=%d channels=%d notes=%d",
-        format.rate, format.channels, sample_engine.sample_count(engine)))
-    return {
-        output = output,
-        engine = engine,
-        previous_volume = previous_volume,
-        rate = format.rate,
-        channels = format.channels,
-        loaded = sample_engine.sample_count(engine),
-        dead = false,
-        active_voices = 0,
-        dropped = 0,
-        warn_until_ms = nil,
-        last_stats_ms = nil,
-        last_pump_ms = nil,
-        lua_draining = false,
-    }
+        end
+        assert(sample_player:start())
+        print(string.format("mosaico-musical: native sample_player up notes=%d", loaded))
+        return { output = output, engine = sample_player, previous_volume = previous_volume, loaded = loaded,
+            dead = false, active_voices = 0, dropped = 0 }
+    end)
+    if ok then return result end
+    if sample_player then pcall(sample_player.close, sample_player) end
+    if previous_volume ~= nil then pcall(output.set_volume, output, previous_volume) end
+    pcall(output.close, output)
+    return muted(tostring(result))
 end
 
--- Generate PCM in the board output format; the sample engine resamples the bank.
 local function setup_audio()
     local available, audio = pcall(require, "audio")
     if not available then return muted(tostring(audio)) end
-    local opened, output = pcall(audio.open_output)
-    if not opened then return muted(tostring(output)) end
-    local info = output:info()
-    if info.bits ~= 16 or (info.channels ~= 1 and info.channels ~= 2) then
-        output:close()
-        return muted("sample engine requires 16-bit mono or stereo PCM")
-    end
-    return setup_lua_engine(output, { rate = info.sample_rate, channels = info.channels }, claim_output_volume(output))
+    if type(audio.sample_player) ~= "function" then return muted("firmware requires audio.sample_player") end
+    local opened, output, open_err = pcall(audio.open_output)
+    if not opened or not output then return muted(tostring(open_err or output)) end
+    return setup_sample_player(audio, output, claim_output_volume(output))
 end
 
 -- Restore the shared volume before releasing the output.
@@ -552,7 +673,7 @@ local function close_audio()
     if active == nil then
         return
     end
-    active.engine = nil
+    if active.engine then pcall(active.engine.close, active.engine); active.engine = nil end
     if active.output ~= nil then
         -- Before muting: the level belongs to the shared mixer, so leaving it
         -- raised would make every other app on the device louder.
@@ -588,66 +709,32 @@ local function submit_pluck(event, now)
     if audio_out == nil or audio_out.dead or event.midi == nil then
         return
     end
-    if audio_out.engine == nil or event.frequency == nil then
+    if audio_out.engine == nil then
         return
     end
+    local sample, rate = sample_loader.resolve(event.midi)
+    if not sample then warn_audio(now, "unsupported note: " .. tostring(event.midi)); return end
     local ok, res, perr = pcall(
-        sample_engine.pluck, audio_out.engine,
-        event.frequency, event.velocity, now, 0)
+        audio_out.engine.trigger, audio_out.engine, sample, event.velocity, event.delay_ms or 0, event.duration_ms or 0, rate)
     if not ok then
         audio_out.dead = true
-        print("mosaico-musical: engine:pluck raised, MUTED: " .. tostring(res))
+        print("mosaico-musical: sample_player:trigger raised, MUTED: " .. tostring(res))
         return
     end
-    if res == false then
-        warn_audio(now, "lua pluck refused: " .. tostring(perr))
-    else
-        audio_out.lua_draining = true
-    end
+    if not res then warn_audio(now, "pluck refused: " .. tostring(perr)) end
 end
 
--- Lua path only: render the wall-clock gap since the last pump and write it.
--- Idle with no voices writes nothing, so the amp is not held on digital zero.
-local function pump_lua_audio(now)
-    if audio_out == nil or audio_out.dead or audio_out.engine == nil then
-        return
-    end
-    local last = audio_out.last_pump_ms
-    audio_out.last_pump_ms = now
-    if last == nil then
-        return
-    end
-    local elapsed_ms = now - last
-    if elapsed_ms < 1 then
-        elapsed_ms = LOOP_MS
-    elseif elapsed_ms > 80 then
-        elapsed_ms = 80
-    end
-    local voices = sample_engine.active_voice_count(audio_out.engine)
-    if voices < 1 and not audio_out.lua_draining then
-        return
-    end
-    local frames = math.floor(audio_out.rate * elapsed_ms / 1000)
-    if frames < 1 then
-        frames = 1
-    end
-    local ok, pcm = pcall(sample_engine.render, audio_out.engine, frames)
-    if not ok then
+-- Status checks are independent of real-time audio production.
+local function poll_audio(now)
+    if not audio_out or audio_out.dead or not audio_out.engine then return end
+    if audio_out.last_stats_ms and now - audio_out.last_stats_ms < 1000 then return end
+    audio_out.last_stats_ms = now
+    local status = audio_out.engine:status()
+    audio_out.active_voices = status.active_voices
+    if status.error ~= "ESP_OK" then
         audio_out.dead = true
-        print("mosaico-musical: lua render raised, MUTED: " .. tostring(pcm))
-        return
+        print("mosaico-musical: sample_player failed, MUTED: " .. status.error)
     end
-    if type(pcm) == "string" and #pcm > 0 then
-        local wok, written, werr = pcall(audio_out.output.write, audio_out.output, pcm)
-        if not wok or written ~= #pcm then
-            audio_out.dead = true
-            print("mosaico-musical: output:write raised, MUTED: "
-                .. tostring(wok and werr or written))
-            return
-        end
-    end
-    audio_out.active_voices = sample_engine.active_voice_count(audio_out.engine)
-    audio_out.lua_draining = audio_out.active_voices > 0
 end
 
 local function init_function_button()
@@ -722,6 +809,10 @@ local function run()
 
     audio_out = setup_audio()
     audio_loading = false
+    if audio_out and type(audio_out.output.get_volume) == "function" then
+        local ok, volume = pcall(audio_out.output.get_volume, audio_out.output)
+        if ok and type(volume) == "number" then settings.volume = math.max(0, math.min(100, math.floor(volume))) end
+    end
 
     print(string.format(
         "mosaico-musical: %dx%d role=%s chord=%s touch=%s audio=%s",
@@ -774,7 +865,12 @@ local function run()
         -- persists across iterations on purpose.
         local batch = adapter:drain(64)
         for _, touch_event in ipairs(batch) do
-            local events = logic.handle_event(state, touch_event)
+            local captured = handle_settings(state, touch_event, now)
+            if not captured and touch_event.type == "down" and player.index then
+                stop_song()
+                settings.dirty = true
+            end
+            local events = captured and {} or logic.handle_event(state, touch_event)
             for _, event in ipairs(events) do
                 if event.type == "pluck" then
                     -- The flash is drawn per geometric column, so it keys on
@@ -786,7 +882,15 @@ local function run()
             end
         end
 
-        pump_lua_audio(now)
+        poll_audio(now)
+        local playing = player.index
+        if player.index and (audio_out == nil or audio_out.dead) then stop_song() end
+        local notes = song_player.poll(player, now, state, logic)
+        for _, note in ipairs(notes) do
+            add_pulse(note.geometry, false, now)
+            submit_pluck(note, now)
+        end
+        if playing ~= player.index then settings.dirty = true end
 
         -- Repaint only what the eye would notice, and never faster than
         -- FRAME_MS. A role change rebuilt the layout and a badge appearing or
@@ -807,10 +911,10 @@ local function run()
                 changed[#changed + 1] = { index = i, color = want }
             end
         end
-        local dirty = role_changed or badge_changed or chord_changed
+        local dirty = settings.dirty or role_changed or badge_changed or chord_changed
             or #changed > 0
         if dirty and (last_draw_ms == nil or now - last_draw_ms >= FRAME_MS) then
-            if role_changed or badge_changed then
+            if settings.dirty or settings.open or settings.songs or role_changed or badge_changed then
                 draw_frame(state, now)
                 for i = 1, 6 do
                     string_colors[i] = desired_string_color(state, i, now)
@@ -821,6 +925,7 @@ local function run()
                     string_colors[ch.index] = ch.color
                 end
             end
+            settings.dirty = false
             last_draw_ms = now
             last_chord = state.selected_chord
             last_role = state.role
@@ -868,6 +973,7 @@ pcall(function()
 end)
 pcall(close_audio)
 pcall(function() if canvas then canvas:close(); canvas = nil end end)
+pcall(function() if ui_font then ui_font:close(); ui_font = nil end end)
 
 -- A cooperative stop arrives as a raised error, and the wording differs by
 -- host: firmware's delay module raises "stop requested" while the hosted web

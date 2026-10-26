@@ -1,9 +1,7 @@
 -- guitar_logic.lua: pure chord/tuning/layout model (no hardware).
--- Tuning, chord voicings, roles, hit testing, and 480x480 geometry.
---
--- Every Y coordinate is authored for a 480-high panel. A wider panel is
--- supported by centring a 480-wide content box; `layout.origin_x` and
--- `layout.content_width` describe that box for the renderer.
+-- Tuning, chord voicings, roles, hit testing, and adaptive geometry.
+-- Controls keep fixed heights; strings extend to the panel bottom.
+-- Content uses up to 480 pixels of width, centred on wider panels.
 
 local M = {}
 
