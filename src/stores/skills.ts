@@ -5,7 +5,7 @@ import type { PackageKind, SkillData } from '@/types/skill'
 export const useSkillsStore = defineStore('skills', () => {
   const skills = ref<SkillData[]>([])
   const loaded = ref(false)
-  const activeCategory = ref<string>('featured')
+  const activeCategory = ref<string>('all')
   const searchQuery = ref('')
   const activeKind = ref<PackageKind | 'all'>('all')
 
