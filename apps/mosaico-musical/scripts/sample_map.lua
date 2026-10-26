@@ -20,5 +20,6 @@ return {
         [65] = { file = "n065.pcm", frames = 30405, name = "F4" },
         [66] = { file = "n066.pcm", frames = 28699, name = "Fs4" },
         [67] = { file = "n067.pcm", frames = 29582, name = "G4" },
+        [128] = { file = "n128.pcm", frames = 960, name = "MutedHit" },
     },
 }

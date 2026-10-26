@@ -19,3 +19,11 @@ Imported with `tools/import_steel_samples.py`:
 
 Attribution is not required by CC0; Jeff Learman and Kinwie are thanked for
 making these recordings available.
+
+## UI font
+
+`ui-20.dfn` is a bitmap subset derived from Noto Sans CJK SC (Google/Adobe), under the SIL Open Font License 1.1. See `FONT-LICENSE.txt`.
+
+Missing score pitches reuse the nearest base sample with native runtime resampling; no per-song PCM is stored. The user-provided song transcription is separate from the CC0 sample recordings.
+
+`n128.pcm` is a synthesized 60 ms muted percussion hit (1920 bytes).

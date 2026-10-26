@@ -105,6 +105,21 @@ function M.load(steel_dir, on_progress)
     return samples, nil
 end
 
+-- Reuse the nearest pitched sample; percussion IDs must match exactly.
+function M.resolve(midi)
+    if sample_map.notes[midi] then return midi, 1 end
+    if midi < 0 or midi > 127 then return nil end
+    local nearest
+    for note in pairs(sample_map.notes) do
+        if note <= 127 and (not nearest or math.abs(note - midi) < math.abs(nearest - midi)
+            or (math.abs(note - midi) == math.abs(nearest - midi) and note < nearest)) then nearest = note end
+    end
+    if not nearest then return nil end
+    local rate = 2 ^ ((midi - nearest) / 12)
+    if rate < 0.25 or rate > 4 then return nil end
+    return nearest, rate
+end
+
 function M.map_rate()
     return sample_map.rate
 end
