@@ -15,6 +15,6 @@
     "category": ["game", "media"],
     "tags": ["pinball", "music", "touch"],
     "peripherals": ["display", "speaker"],
-    "simulator": false
+    "simulator": true
   }
 }

@@ -12,7 +12,10 @@
 
 - 支持屏幕打开/关闭、帧提交、基本图元、内置文字、裁剪、平移和单指触摸。
 - 支持正常退出、异常退出及 Stop 清理；更换脚本或分辨率前先停止当前运行。
-- 暂不支持 `image`、`blit` 和自定义字体，调用时返回错误。
+- 支持自定义字体和 `blit`（RGB565、RGB888、BGR888）；暂不支持 `image`。
+- 支持 `audio.open_output`、文件播放器和 `audio.sample_player`；文件播放、PCM 写入与采样播放器排他使用输出。点击 Run 后启用浏览器音频。
+- 使用 IMU 的应用显示虚拟摇杆（鼠标、触屏和方向键，松手回中）、摇动、翻转和复位按钮，向 Lua 提供模拟加速度。陀螺仪仍返回零。
+- 浏览器采样播放支持句柄、变速、延迟、时长和音量包络；限幅使用 Web Audio 压缩器，声音与设备不保证完全一致。状态不提供设备专属的 DMA、欠载和渲染耗时指标。
 - 飞鸟无音频；额度看板通过 mock 展示示例数据；平衡球不开放试玩。
 
 浏览器执行不能替代真机的传感器、音频、内存及屏幕性能检查。
@@ -48,4 +51,4 @@ VITE_SKILLS_LAB_RAW_BASE=/lab/raw VITE_SKILLS_LAB_WEB_BASE=http://localhost:5173
 
 本站提供 `pnpm validate-packages`、`pnpm test`、`pnpm test-apps` 和 `pnpm build`。Lua 主机测试需要 Lua 5.4 或更新版本，使用 API 桩，不访问硬件。
 
-上游模拟器提供 `pnpm test` 和 `pnpm build`；`tools/lua_lvgl_web_sim/tests/display_contract.lua` 可上传到模拟器执行，覆盖图元、帧、触摸和资源契约。这些命令是复现入口，不表示当前修改已经执行验证。
+上游模拟器提供 `pnpm test`（引导参数和音频生命周期）和 `pnpm build`；`tools/lua_lvgl_web_sim/tests/display_contract.lua` 可上传到模拟器执行，覆盖图元、帧、触摸和资源契约。

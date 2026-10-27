@@ -13,6 +13,7 @@
     "peripherals": ["display"],
     "description_i18n": {
       "zh-cn": "探索太阳系行星及其轨道，单指拖动旋转视角，双指缩放和平移。"
-    }
+    },
+    "simulator": true
   }
 }

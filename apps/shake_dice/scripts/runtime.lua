@@ -251,7 +251,7 @@ function M.run(id, directory, create)
             delay.delay_ms(math.max(1, remaining))
         end
     end, debug.traceback)
-    if not ok then print("[" .. id .. "] ERROR: " .. tostring(err)); error(err, 0) end
+    if not ok and not tostring(err):find("stop requested", 1, true) and not tostring(err):find("stopped by user", 1, true) then print("[" .. id .. "] ERROR: " .. tostring(err)); error(err, 0) end
 end
 
 return M

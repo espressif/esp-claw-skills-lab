@@ -13,6 +13,7 @@
     "peripherals": ["display"],
     "description_i18n": {
       "zh-cn": "触屏操控飞船，躲避敌弹并击败不断来袭的敌人，配有战斗音效。"
-    }
+    },
+    "simulator": true
   }
 }
