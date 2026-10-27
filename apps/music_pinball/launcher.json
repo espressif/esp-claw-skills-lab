@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "id": "music_pinball",
+  "entry": "scripts/main.lua",
+  "display_name": "Music Pinball",
+  "args": {},
+  "order": 22,
+  "visible": true,
+  "icon": "assets/icon.jpg",
+  "catalog": {
+    "description": "Play a musical pinball table: flip the ball into melodic bumpers, follow glowing targets to complete melodies, build combos, and unlock double-score music fever.",
+    "description_i18n": {
+      "zh-cn": "追逐发光目标完成旋律，连续击球积累倍率，完成三段旋律开启双倍得分的音乐狂欢。"
+    },
+    "category": ["game", "media"],
+    "tags": ["pinball", "music", "touch"],
+    "peripherals": ["display", "speaker"],
+    "simulator": false
+  }
+}
