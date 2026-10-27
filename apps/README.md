@@ -20,6 +20,7 @@
 | `game_of_life`          | Game of Life         | 已开放             |
 | `jump_prince_game`      | Jump Prince          | 已开放             |
 | `maze`                  | Maze                 | 已开放             |
+| `music_pinball`         | 音乐弹珠台           | 暂未开放           |
 | `mosaico-musical`       | Mosaico Musical      | 已开放，静音模式   |
 | `number_puzzle`         | Number Puzzle        | 已开放             |
 | `reaction_game`         | Reaction Game        | 已开放             |
