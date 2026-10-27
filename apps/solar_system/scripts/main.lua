@@ -59,4 +59,4 @@ end
 
 local run_ok, run_err = xpcall(run, debug.traceback)
 cleanup()
-if not run_ok then print("[solar_system] ERROR: " .. tostring(run_err)) end
+if not run_ok and not tostring(run_err):find("stop requested", 1, true) and not tostring(run_err):find("stopped by user", 1, true) then print("[solar_system] ERROR: " .. tostring(run_err)) end

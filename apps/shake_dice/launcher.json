@@ -14,6 +14,7 @@
     "tags": ["imu", "motion", "audio"],
     "description_i18n": {
       "zh-cn": "摇晃设备后保持静止，掷出 1 至 3 颗骰子；也可以直接点击掷骰。"
-    }
+    },
+    "simulator": true
   }
 }

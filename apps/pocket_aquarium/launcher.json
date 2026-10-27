@@ -8,6 +8,7 @@
   "visible": true,
   "icon": "assets/icon.jpg",
   "catalog": {
+    "simulator": true,
     "description": "Tilt to move the water and fish, tap to feed, and switch between day and night.",
     "category": ["ui"],
     "peripherals": ["display"],
