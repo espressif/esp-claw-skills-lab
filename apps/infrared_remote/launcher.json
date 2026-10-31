@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "id": "infrared_remote",
+  "display_name": "红外遥控器",
+  "entry": "scripts/infrared_remote.lua",
+  "icon": "assets/icon.jpg",
+  "args": {
+    "protocol_address": 0,
+    "tv_codes": {},
+    "media_codes": {}
+  },
+  "order": 16,
+  "visible": true,
+  "catalog": {
+    "description": "Create and switch between infrared remotes for TVs, air conditioners, media players and custom devices, with protocol selection and key learning.",
+    "author": "ESP-Claw contributor",
+    "category": ["utility", "hardware", "ui"],
+    "tags": ["remote", "air-conditioner", "tv", "media", "learning", "touch", "infrared"],
+    "peripherals": ["display", "ir"],
+    "description_i18n": {
+      "zh-cn": "创建并切换电视、空调、影音及自定义设备遥控器，支持协议选择、逐键学习和持久保存。"
+    }
+  }
+}
