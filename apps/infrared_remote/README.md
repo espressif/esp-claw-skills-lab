@@ -43,12 +43,12 @@ App 启动时通过 `ir.protocol.list()` 读取内置协议、SYSTEM 的 `ir/pro
 
 ## 硬件要求
 
-需要至少 240×200 的显示屏和触控输入。App 启动时通过 `board_manager.get_board_info()` 读取板名，并选择对应的默认引脚（载波均为 38 kHz）：
+需要至少 240×200 的显示屏和触控输入，以及提供 `lvgl.SYMBOL` 图标的固件。App 启动时通过 `board_manager.get_board_info()` 读取板名，并选择对应的默认引脚（载波均为 38 kHz）：
 
-| 板子 | TX | RX | 使能 |
-| --- | --- | --- | --- |
-| `esp_box_3` | GPIO 39 | GPIO 38 | GPIO 44（低电平有效） |
-| `esp_mosaico` | GPIO 47 | NC（不支持学习） | NC |
+| 板子          | TX      | RX               | 使能                  |
+| ------------- | ------- | ---------------- | --------------------- |
+| `esp_box_3`   | GPIO 39 | GPIO 38          | GPIO 44（低电平有效） |
+| `esp_mosaico` | GPIO 47 | NC（不支持学习） | NC                    |
 
 其他板子沿用 BOX-3 的默认值。可在首页右上角的设置页修改。发送、接收和使能 GPIO 必须互不相同；接收或使能 GPIO 可设为 `NC`（未连接）。应用后 App 会立即按新配置重开红外硬件，初始化失败时自动恢复旧配置。
 
@@ -63,7 +63,7 @@ App 启动时通过 `ir.protocol.list()` 读取内置协议、SYSTEM 的 `ir/pro
 - `scripts/protocol_catalog.lua`：协议发现、显示名称、默认选择、`ir_remote` 配置生成和学习帧识别。
 - `scripts/device_manager.lua`：设备列表、remote 恢复、创建/删除回滚和延迟保存。
 - `scripts/remote_store.lua`：JSON 快照的原子保存与加载。
-- `scripts/ui/`：设计令牌与基础控件（`kit.lua`）、线条图标（`icons.lua`）、提示条/确认框/学习面板/列表选择器（`overlays.lua`）。
+- `scripts/ui/`：设计令牌与基础控件（`kit.lua`）、图标名到字形的映射（`icons.lua`）、提示条/确认框/学习面板/列表选择器（`overlays.lua`）。
 - `scripts/pages/`：首页、添加页、设置页、通用遥控页及 TV/Media/Custom 键盘和空调面板。
 
-界面使用原生 `lvgl` 控件和动态 TTF 字体：浮起控件使用主题按钮阴影，面板内按键为扁平按键，图标由折线绘制。`ir` 模块负责编解码和收发，`ir_remote` 库负责按键、空调状态、学习和快照，`storage` 与 `json` 模块负责持久化。关键硬件、编码、学习和存储错误都会写入日志。
+界面使用原生 `lvgl` 控件和动态 TTF 字体：浮起控件使用主题按钮阴影，面板内按键为扁平按键，图标是系统字体中的 `lvgl.SYMBOL` 字形，每个图标只占一个标签对象。`ir` 模块负责编解码和收发，`ir_remote` 库负责按键、空调状态、学习和快照，`storage` 与 `json` 模块负责持久化。关键硬件、编码、学习和存储错误都会写入日志。

@@ -13,6 +13,12 @@ local MARGIN = 12
 local BOTTOM_MARGIN = 10
 -- Line height of the bundled NotoSansSC font in ems ((ascent + descent) / units per em).
 local LINE_RATIO = 1.448
+local MIN_FONT_PX = 9
+-- Icon glyphs span about one em and are centered 0.375 em above the baseline, which sits one
+-- ascent (1.16 em) below the top of the line. Icons fill 75% of their box like the old strokes did.
+local ICON_EM_RATIO = 0.75
+local ICON_CENTER_EM = 1.16 - 0.375
+local ICON_FONT_CACHE = 16
 local RING_STEP_DEG = 10
 local FONTS = {
     caption = {size = 11, cache = 96},
@@ -113,9 +119,9 @@ Kit.set_hidden = set_hidden
 
 function Kit.new(screen)
     local w, h = screen:get_size()
-    local self = setmetatable({w = w, h = h, u = math.min(MAX_SCALE, math.min(w, h) / REFERENCE_SIDE), fonts = {}, font_px = {}}, Kit)
+    local self = setmetatable({w = w, h = h, u = math.min(MAX_SCALE, math.min(w, h) / REFERENCE_SIDE), fonts = {}, font_px = {}, icon_fonts = {}}, Kit)
     for name, font in pairs(FONTS) do
-        self.font_px[name] = math.max(9, self:px(font.size))
+        self.font_px[name] = math.max(MIN_FONT_PX, self:px(font.size))
         self.fonts[name] = lvgl.font_load({size = self.font_px[name], cache_size = font.cache})
     end
     lvgl.set_default_font(self.fonts.body)
@@ -167,64 +173,49 @@ function Kit:label(parent, text, opts)
     })
 end
 
+local function glyph(name)
+    return Icons[name] or error("unknown icon '" .. tostring(name) .. "'")
+end
+
+-- One glyph label; show() swaps the glyph in place.
 local Icon = {}
 Icon.__index = Icon
 
-function Icon:set_color(color)
-    if color == self.color then return end
-    self.color = color
-    for _, line in ipairs(self.lines) do line:set_style({line_color = color}) end
-end
+function Icon:set_color(color) Kit.restyle(self.label, {text_color = color}) end
 
-function Icon:set_hidden(hidden)
-    for _, line in ipairs(self.lines) do set_hidden(line, hidden) end
-end
+function Icon:set_hidden(hidden) set_hidden(self.label, hidden) end
 
-function Kit:icon(parent, name, x, y, size, color)
-    local strokes = Icons[name] or error("unknown icon '" .. tostring(name) .. "'")
-    local scale = size / Icons.GRID
-    local width = math.max(1, math.floor(size / 11 + 0.5))
-    local icon = setmetatable({lines = {}, color = color}, Icon)
-    for _, stroke in ipairs(strokes) do
-        local points = {}
-        for i, p in ipairs(stroke) do
-            points[i] = {x = math.floor(x + p[1] * scale + 0.5), y = math.floor(y + p[2] * scale + 0.5)}
-        end
-        icon.lines[#icon.lines + 1] = lvgl.line(parent, {points = points, line_color = color, line_width = width})
+function Icon:show(name) Kit.set_text(self.label, glyph(name)) end
+
+-- Icon fonts are shared per pixel size; they reuse the loaded font data and only add a glyph cache.
+function Kit:_icon_font(size)
+    local px = math.max(MIN_FONT_PX, math.floor(size * ICON_EM_RATIO + 0.5))
+    local font = self.icon_fonts[px]
+    if not font then
+        font = lvgl.font_load({size = px, cache_size = ICON_FONT_CACHE})
+        self.icon_fonts[px] = font
     end
+    return font, px
+end
+
+-- Centers the glyph in the size x size box at (x, y). The label is twice as wide as the box so wide
+-- glyphs such as play/pause are never wrapped or clipped. lvgl.label() ignores w unless h is also
+-- given, and a content-sized label would leave the glyph shifted left by the extra half width.
+function Kit:icon(parent, name, x, y, size, color)
+    local font, px = self:_icon_font(size)
+    local label = lvgl.label(parent, {
+        text = "", font = font, x = x - size // 2, y = y + size // 2 - math.floor(px * ICON_CENTER_EM + 0.5),
+        w = size * 2, h = math.floor(px * LINE_RATIO), text_align = "center",
+    })
+    local icon = setmetatable({label = label}, Icon)
+    if name then icon:show(name) end
+    icon:set_color(color)
     return icon
 end
 
--- Swappable icon at one spot. Each icon's lines are created on first show, since every stroke is an
--- LVGL object and most slots only ever show one or two icons.
-local IconSet = {}
-IconSet.__index = IconSet
-
-function IconSet:show(name)
-    if name == self.current then return end
-    local shown = self.icons[self.current]
-    if shown then shown:set_hidden(true) end
-    local icon = self.icons[name]
-    if icon then
-        icon:set_hidden(false)
-        icon:set_color(self.color)
-    else
-        self.icons[name] = self.kit:icon(self.parent, name, self.x, self.y, self.size, self.color)
-    end
-    self.current = name
-end
-
-function IconSet:set_color(color)
-    self.color = color
-    local icon = self.icons[self.current]
-    if icon then icon:set_color(color) end
-end
-
--- initial: optional icon shown right away.
+-- Same as icon(); kept for slots whose glyph changes, where initial may be nil.
 function Kit:icon_set(parent, x, y, size, color, initial)
-    local set = setmetatable({kit = self, parent = parent, x = x, y = y, size = size, color = color, icons = {}}, IconSet)
-    if initial then set:show(initial) end
-    return set
+    return self:icon(parent, initial, x, y, size, color)
 end
 
 -- Button marks: "idle", "learned" (badge dot), "missing" (no code yet) and "target" (learn/remove mode).

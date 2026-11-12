@@ -1,53 +1,39 @@
--- Stroke icons on a 24x24 grid. Each icon is a list of polylines; arcs are expanded at load time.
-local GRID = 24
-local ARC_STEP_DEG = 15
+-- Icon names used by the pages, mapped to glyphs of the system font (lvgl.SYMBOL).
+local lvgl = require("lvgl")
 
--- Angles in degrees, clockwise from +x because the screen y axis points down.
-local function arc(cx, cy, r, from, to)
-    local steps = math.max(2, math.ceil(math.abs(to - from) / ARC_STEP_DEG))
-    local points = {}
-    for i = 0, steps do
-        local a = math.rad(from + (to - from) * i / steps)
-        points[#points + 1] = {cx + r * math.cos(a), cy + r * math.sin(a)}
-    end
-    return points
-end
-
-local SPEAKER = {{4, 9}, {8, 9}, {13, 5}, {13, 19}, {8, 15}, {4, 15}, {4, 9}}
-
-local function square(x, y, s) return {{x, y}, {x + s, y}, {x + s, y + s}, {x, y + s}, {x, y}} end
+local S = assert(lvgl.SYMBOL, "Infrared Remote needs firmware with lvgl.SYMBOL icons")
 
 return {
-    GRID = GRID,
-    back = {{{15, 5}, {8, 12}, {15, 19}}},
-    plus = {{{12, 5}, {12, 19}}, {{5, 12}, {19, 12}}},
-    minus = {{{5, 12}, {19, 12}}},
-    check = {{{5, 12.5}, {10, 17.5}, {19, 7}}},
-    chevron_up = {{{6, 15}, {12, 9}, {18, 15}}},
-    chevron_down = {{{6, 9}, {12, 15}, {18, 9}}},
-    chevron_left = {{{15, 6}, {9, 12}, {15, 18}}},
-    chevron_right = {{{9, 6}, {15, 12}, {9, 18}}},
-    power = {arc(12, 13, 8, -55, 235), {{12, 3}, {12, 12}}},
-    settings = {{{4, 7}, {20, 7}}, {{4, 12}, {20, 12}}, {{4, 17}, {20, 17}}, {{9, 4.5}, {9, 9.5}}, {{15, 9.5}, {15, 14.5}}, {{11, 14.5}, {11, 19.5}}},
-    trash = {{{4, 7}, {20, 7}}, {{9, 7}, {9, 4}, {15, 4}, {15, 7}}, {{6, 7}, {7, 20}, {17, 20}, {18, 7}}, {{10, 11}, {10, 16}}, {{14, 11}, {14, 16}}},
-    learn = {arc(6, 12, 1.5, 0, 360), arc(6, 12, 6.5, -45, 45), arc(6, 12, 12, -42, 42)},
-    remote = {{{8, 2}, {16, 2}, {16, 22}, {8, 22}, {8, 2}}, arc(12, 7, 2, 0, 360), {{10.5, 12}, {13.5, 12}}, {{10.5, 16}, {13.5, 16}}},
-    tv = {{{3, 5}, {21, 5}, {21, 17}, {3, 17}, {3, 5}}, {{8, 21}, {16, 21}}, {{12, 17}, {12, 21}}},
-    snow = {{{12, 3}, {12, 21}}, {{4.2, 7.5}, {19.8, 16.5}}, {{4.2, 16.5}, {19.8, 7.5}}, {{9.5, 4.5}, {12, 7}, {14.5, 4.5}}, {{9.5, 19.5}, {12, 17}, {14.5, 19.5}}},
-    play = {{{8, 5}, {19, 12}, {8, 19}, {8, 5}}},
-    play_pause = {{{4, 6}, {12, 12}, {4, 18}, {4, 6}}, {{16, 6}, {16, 18}}, {{20, 6}, {20, 18}}},
-    previous = {{{6, 5}, {6, 19}}, {{18, 5}, {9, 12}, {18, 19}, {18, 5}}},
-    next = {{{18, 5}, {18, 19}}, {{6, 5}, {15, 12}, {6, 19}, {6, 5}}},
-    grid = {square(4, 4, 6), square(14, 4, 6), square(4, 14, 6), square(14, 14, 6)},
-    vol_up = {SPEAKER, {{16, 12}, {21, 12}}, {{18.5, 9.5}, {18.5, 14.5}}},
-    vol_down = {SPEAKER, {{16, 12}, {21, 12}}},
-    mute = {SPEAKER, {{16, 9.5}, {21, 14.5}}, {{21, 9.5}, {16, 14.5}}},
-    input = {{{10, 5}, {20, 5}, {20, 19}, {10, 19}}, {{3, 12}, {14, 12}}, {{10, 8}, {14, 12}, {10, 16}}},
-    home = {{{3.5, 11.5}, {12, 4}, {20.5, 11.5}}, {{6, 9.5}, {6, 20}, {18, 20}, {18, 9.5}}, {{10, 20}, {10, 14}, {14, 14}, {14, 20}}},
-    ret = {{{9, 5}, {4, 10}, {9, 15}}, {{4, 10}, {15, 10}, {18.5, 12}, {20, 15}, {18.5, 18}, {15, 20}, {10, 20}}},
-    sun = {arc(12, 12, 4, 0, 360), {{12, 2.5}, {12, 5}}, {{12, 19}, {12, 21.5}}, {{2.5, 12}, {5, 12}}, {{19, 12}, {21.5, 12}}, {{5.3, 5.3}, {7, 7}}, {{17, 17}, {18.7, 18.7}}, {{5.3, 18.7}, {7, 17}}, {{17, 7}, {18.7, 5.3}}},
-    drop = {{{12, 3}, {7, 10.5}, {6, 14}, {7.5, 18}, {12, 20.5}, {16.5, 18}, {18, 14}, {17, 10.5}, {12, 3}}},
-    auto = {{{6, 19}, {12, 5}, {18, 19}}, {{8.4, 14}, {15.6, 14}}},
-    fan = {{{3, 8}, {15, 8}, {17.5, 6.5}, {17.5, 4}, {15, 3}}, {{3, 13}, {19, 13}, {21, 15}, {20, 18}, {17, 18.5}}, {{3, 18}, {11, 18}}},
-    swing = {{{12, 4}, {12, 20}}, {{8, 8}, {12, 4}, {16, 8}}, {{8, 16}, {12, 20}, {16, 16}}},
+    back = S.LEFT,
+    plus = S.PLUS,
+    minus = S.MINUS,
+    check = S.OK,
+    chevron_up = S.UP,
+    chevron_down = S.DOWN,
+    chevron_left = S.LEFT,
+    chevron_right = S.RIGHT,
+    power = S.POWER,
+    settings = S.SLIDERS_H,
+    trash = S.TRASH,
+    learn = S.SATELLITE_DISH,
+    remote = S.MOBILE_ALT,
+    tv = S.TV,
+    snow = S.SNOWFLAKE,
+    play = S.PLAY,
+    play_pause = S.PLAY .. S.PAUSE,
+    previous = S.PREV,
+    next = S.NEXT,
+    grid = S.TH_LARGE,
+    vol_up = S.VOLUME_MAX,
+    vol_down = S.VOLUME_MID,
+    mute = S.VOLUME_MUTE,
+    input = S.SIGN_IN_ALT,
+    home = S.HOME,
+    ret = S.REPLY,
+    sun = S.SUN,
+    drop = S.TINT,
+    -- The font's own letter keeps "auto" in the same style as the glyphs around it.
+    auto = "A",
+    fan = S.WIND,
+    swing = S.ARROWS_ALT_V,
 }
