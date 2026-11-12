@@ -7,6 +7,7 @@ Kit.__index = Kit
 
 -- Layout units are designed for a 240 px short side and scaled to the actual screen.
 local REFERENCE_SIDE = 240
+local MAX_SCALE = 1.5
 local HEADER_H = 48
 local MARGIN = 12
 local BOTTOM_MARGIN = 10
@@ -112,7 +113,7 @@ Kit.set_hidden = set_hidden
 
 function Kit.new(screen)
     local w, h = screen:get_size()
-    local self = setmetatable({w = w, h = h, u = math.min(w, h) / REFERENCE_SIDE, fonts = {}, font_px = {}}, Kit)
+    local self = setmetatable({w = w, h = h, u = math.min(MAX_SCALE, math.min(w, h) / REFERENCE_SIDE), fonts = {}, font_px = {}}, Kit)
     for name, font in pairs(FONTS) do
         self.font_px[name] = math.max(9, self:px(font.size))
         self.fonts[name] = lvgl.font_load({size = self.font_px[name], cache_size = font.cache})
@@ -162,7 +163,7 @@ function Kit:label(parent, text, opts)
     local font = opts.font or "body"
     return lvgl.label(parent, {
         text = text, font = self.fonts[font], text_color = opts.color, x = opts.x or 0, y = opts.y or 0, align = opts.align,
-        w = opts.w, h = opts.w and self:line_h(font) * (opts.lines or 1) or nil,
+        w = opts.w, h = opts.w and self:line_h(font) * (opts.lines or 1) or nil, text_align = opts.text_align,
     })
 end
 

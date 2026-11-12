@@ -6,6 +6,7 @@ local SettingsPage = {}
 SettingsPage.__index = SettingsPage
 
 local ERROR_TEXT_MAX = 32
+local COMPACT_LABELS = {tx_gpio = "TX pin", rx_gpio = "RX pin", ctrl_gpio = "EN pin", ctrl_active_level = "Level", carrier_hz = "Carrier"}
 
 function SettingsPage.new(app)
     local kit, C = app.kit, Kit.C
@@ -20,10 +21,17 @@ function SettingsPage.new(app)
     local n, gap = #IrLink.FIELDS, px(6)
     local row_h = (h - gap * (n - 1)) // n
     local bw, bh = px(40), row_h - px(8)
+    local controls_x = w - 2 * bw - px(10)
+    local compact = kit.w < 360
+    local text_x, text_gap = px(14), px(compact and 4 or 8)
+    local label_w = compact and px(48) or math.min(px(100), math.floor((controls_x - text_x - text_gap) * 0.55))
+    local value_x = text_x + label_w + text_gap
+    local value_w = controls_x - value_x - text_gap
     for i, field in ipairs(IrLink.FIELDS) do
         local row = kit:raised(self.view, x, y + (i - 1) * (row_h + gap), w, row_h, px(14))
-        kit:label(row, field.label, {color = C.muted, align = "left_mid", x = px(14)})
-        self.values[i] = kit:label(row, "", {font = "strong", color = C.text, align = "right_mid", x = -(px(14) + 2 * bw + px(14))})
+        local label = compact and COMPACT_LABELS[field.key] or field.label
+        kit:label(row, label, {color = C.muted, align = "left_mid", x = text_x, w = label_w})
+        self.values[i] = kit:label(row, "", {font = compact and "body" or "strong", color = C.text, align = "left_mid", x = value_x, w = value_w, text_align = "right"})
         local minus = kit:button(row, w - 2 * bw - px(10), (row_h - bh) // 2, bw, bh, {icon = "minus", icon_size = px(16), fill = C.sunken, radius = px(10)})
         local plus = kit:button(row, w - bw - px(4), (row_h - bh) // 2, bw, bh, {icon = "plus", icon_size = px(16), fill = C.sunken, radius = px(10)})
         minus:on_click(function() self:_step(field, -1) end)
