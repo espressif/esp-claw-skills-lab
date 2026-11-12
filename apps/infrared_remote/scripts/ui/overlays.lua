@@ -30,7 +30,7 @@ function Overlays.toast(kit, parent)
     local px = function(v) return kit:px(v) end
     local w, h = kit.w - px(32), px(32)
     local self = setmetatable({deadline = nil}, Toast)
-    self.box = kit:box(parent, px(16), kit.h - h - px(12), w, h, {radius = Kit.FULL, bg_color = Kit.C.toast})
+    self.box = kit:box(parent, px(16), kit.h - h - px(56), w, h, {radius = Kit.FULL, bg_color = Kit.C.toast})
     self.dot = kit:circle(self.box, px(13), (h - px(8)) // 2, px(8), Kit.TONES.info)
     self.label = kit:label(self.box, "", {color = Kit.C.inverse, align = "left_mid", x = px(30), w = w - px(42)})
     self.box:add_flag("HIDDEN")
